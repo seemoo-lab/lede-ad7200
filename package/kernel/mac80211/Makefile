@@ -296,7 +296,7 @@ endef
 define KernelPackage/wil6210
 	$(call KernelPackage/mac80211/Default)
 	TITLE:=Driver for QCA9008 802.11ad
-	DEPENDS:=@PCI_SUPPORT +kmod-mac80211 +kmod-ath
+	DEPENDS:=@PCI_SUPPORT +kmod-mac80211 +kmod-ath +wil6210-firmware
 	FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/wil6210/wil6210.ko
 	AUTOLOAD:=$(call AutoProbe,wil6210)
 endef
