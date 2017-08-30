@@ -33,10 +33,9 @@ diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/
 index fdaa99c..aa9ce30 100644
 --- a/drivers/net/wireless/ath/wil6210/cfg80211.c
 +++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
-@@ -16,6 +16,7 @@
+@@ -16,5 +16,6 @@
  
  #include <linux/etherdevice.h>
- #include <linux/moduleparam.h>
 +#include <net/netlink.h>
  #include "wil6210.h"
  #include "wmi.h"
@@ -223,7 +222,7 @@ index fdaa99c..aa9ce30 100644
 +		return -EOPNOTSUPP;
 +
 +	rc = nla_parse(tb, QCA_ATTR_DMG_RF_SECTOR_MAX, data, data_len,
-+		       wil_rf_sector_policy, NULL);
++		       wil_rf_sector_policy);
 +	if (rc) {
 +		wil_err(wil, "Invalid rf sector ATTR\n");
 +		return rc;
@@ -341,7 +340,7 @@ index fdaa99c..aa9ce30 100644
 +		return -EOPNOTSUPP;
 +
 +	rc = nla_parse(tb, QCA_ATTR_DMG_RF_SECTOR_MAX, data, data_len,
-+		       wil_rf_sector_policy, NULL);
++		       wil_rf_sector_policy);
 +	if (rc) {
 +		wil_err(wil, "Invalid rf sector ATTR\n");
 +		return rc;
@@ -374,8 +373,8 @@ index fdaa99c..aa9ce30 100644
 +	nla_for_each_nested(nl_cfg, tb[QCA_ATTR_DMG_RF_SECTOR_CFG],
 +			    tmp) {
 +		rc = nla_parse_nested(tb2, QCA_ATTR_DMG_RF_SECTOR_CFG_MAX,
-+				      nl_cfg, wil_rf_sector_cfg_policy,
-+				      NULL);
++				      nl_cfg, wil_rf_sector_cfg_policy
++				      );
 +		if (rc) {
 +			wil_err(wil, "invalid sector cfg\n");
 +			return -EINVAL;
@@ -446,7 +445,7 @@ index fdaa99c..aa9ce30 100644
 +		return -EOPNOTSUPP;
 +
 +	rc = nla_parse(tb, QCA_ATTR_DMG_RF_SECTOR_MAX, data, data_len,
-+		       wil_rf_sector_policy, NULL);
++		       wil_rf_sector_policy);
 +	if (rc) {
 +		wil_err(wil, "Invalid rf sector ATTR\n");
 +		return rc;
@@ -553,7 +552,7 @@ index fdaa99c..aa9ce30 100644
 +		return -EOPNOTSUPP;
 +
 +	rc = nla_parse(tb, QCA_ATTR_DMG_RF_SECTOR_MAX, data, data_len,
-+		       wil_rf_sector_policy, NULL);
++		       wil_rf_sector_policy);
 +	if (rc) {
 +		wil_err(wil, "Invalid rf sector ATTR\n");
 +		return rc;
