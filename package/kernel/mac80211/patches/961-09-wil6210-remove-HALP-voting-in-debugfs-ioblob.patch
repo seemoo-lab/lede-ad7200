@@ -1,0 +1,95 @@
+From patchwork Wed Apr  5 11:58:12 2017
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [09/11] wil6210: remove HALP voting in debugfs ioblob
+From: Maya Erez <qca_merez@qca.qualcomm.com>
+X-Patchwork-Id: 9663837
+Message-Id: <1491393494-11816-10-git-send-email-qca_merez@qca.qualcomm.com>
+To: Kalle Valo <kvalo@codeaurora.org>
+Cc: Maya Erez <qca_merez@qca.qualcomm.com>,
+ linux-wireless@vger.kernel.org, wil6210@qca.qualcomm.com
+Date: Wed,  5 Apr 2017 14:58:12 +0300
+
+debugfs ioblob function is called by the FW logs scripts
+to copy the FW logs via PCIe.
+As the FW logs collection is done in parallel to the operational
+11AD actions, the HALP voting can take place during 11AD reset flow
+and other sensitive scenarios.
+To prevent that, remove HALP voting from the ioblob function.
+
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+---
+ drivers/net/wireless/ath/wil6210/debugfs.c |  5 ++---
+ drivers/net/wireless/ath/wil6210/main.c    | 17 -----------------
+ drivers/net/wireless/ath/wil6210/wil6210.h |  6 ------
+ 3 files changed, 2 insertions(+), 26 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
+index 3e8cdf1..5648ebb 100644
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -524,9 +524,8 @@ static ssize_t wil_read_file_ioblob(struct file *file, char __user *user_buf,
+ 	if (!buf)
+ 		return -ENOMEM;
+ 
+-	wil_memcpy_fromio_halp_vote(wil_blob->wil, buf,
+-				    (const volatile void __iomem *)
+-				    wil_blob->blob.data + pos, count);
++	wil_memcpy_fromio_32(buf, (const void __iomem *)
++			     wil_blob->blob.data + pos, count);
+ 
+ 	ret = copy_to_user(user_buf, buf, count);
+ 	kfree(buf);
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
+index 439d27c..3208679 100644
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
+@@ -141,14 +141,6 @@ void wil_memcpy_fromio_32(void *dst, const volatile void __iomem *src,
+ 	}
+ }
+ 
+-void wil_memcpy_fromio_halp_vote(struct wil6210_priv *wil, void *dst,
+-				 const volatile void __iomem *src, size_t count)
+-{
+-	wil_halp_vote(wil);
+-	wil_memcpy_fromio_32(dst, src, count);
+-	wil_halp_unvote(wil);
+-}
+-
+ void wil_memcpy_toio_32(volatile void __iomem *dst, const void *src,
+ 			size_t count)
+ {
+@@ -167,15 +159,6 @@ void wil_memcpy_toio_32(volatile void __iomem *dst, const void *src,
+ 	}
+ }
+ 
+-void wil_memcpy_toio_halp_vote(struct wil6210_priv *wil,
+-			       volatile void __iomem *dst,
+-			       const void *src, size_t count)
+-{
+-	wil_halp_vote(wil);
+-	wil_memcpy_toio_32(dst, src, count);
+-	wil_halp_unvote(wil);
+-}
+-
+ static void wil_disconnect_cid(struct wil6210_priv *wil, int cid,
+ 			       u16 reason_code, bool from_event)
+ __acquires(&sta->tid_rx_lock) __releases(&sta->tid_rx_lock)
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
+index 2af4a64..ec646d7 100644
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
+@@ -803,12 +803,6 @@ void wil_memcpy_fromio_32(void *dst, const volatile void __iomem *src,
+ 			  size_t count);
+ void wil_memcpy_toio_32(volatile void __iomem *dst, const void *src,
+ 			size_t count);
+-void wil_memcpy_fromio_halp_vote(struct wil6210_priv *wil, void *dst,
+-				 const volatile void __iomem *src,
+-				 size_t count);
+-void wil_memcpy_toio_halp_vote(struct wil6210_priv *wil,
+-			       volatile void __iomem *dst,
+-			       const void *src, size_t count);
+ 
+ void *wil_if_alloc(struct device *dev);
+ void wil_if_free(struct wil6210_priv *wil);
