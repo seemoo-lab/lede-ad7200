@@ -1,0 +1,69 @@
+#!/bin/sh
+# Configure system defaults
+
+/etc/init.d/odhcpd disable
+/etc/init.d/firewall disable
+
+# Set Host configuration 
+uci -q batch <<-EOT
+
+  set system.@system[0].timezone='CET-1CEST,M3.5.0,M10.5.0/3'
+  set system.@system[0].hostname='TALON'
+
+  del network.lan.type
+  set network.lan.proto='static'
+  set network.lan.ipaddr='192.168.0.1'
+  set network.lan.netmask='255.255.255.0'
+
+  # Configure WLAN0
+  set wireless.@wifi-device[0].disabled='0'
+  set wireless.@wifi-iface[0].mode='sta'
+  set wireless.@wifi-iface[0].network='wlan0'
+  set wireless.@wifi-iface[0].ifname='wlan0'
+
+  add network interface
+  rename network.@interface[-1]='wlan0'
+  set network.wlan0.ifname='wlan0'
+  set network.wlan0.proto='dhcp'
+
+  # Configure WLAN1
+  set wireless.@wifi-device[1].disabled='0'
+  set wireless.@wifi-iface[1].mode='sta'
+  set wireless.@wifi-iface[1].network='wlan1'
+  set wireless.@wifi-iface[1].ifname='wlan1'
+
+  add network interface
+  rename network.@interface[-1]='wlan1'
+  set network.wlan1.ifname='wlan1'
+  set network.wlan1.proto='dhcp'
+
+  # Configure WLAN2
+  del wireless.@wifi-device[2].hwmode
+  del wireless.@wifi-device[2].htmode
+  del wireless.@wifi-device[2].channel
+  set wireless.@wifi-device[2].freq='60480'
+  set wireless.@wifi-device[2].disabled='0'
+  set wireless.@wifi-iface[2].mode='sta'
+  set wireless.@wifi-iface[2].network='wlan2'
+  set wireless.@wifi-iface[2].ifname='wlan2'
+  set wireless.@wifi-iface[2].ssid='TALON_AD7200'
+  set wireless.@wifi-iface[2].encryption='none'
+
+  add network interface
+  rename network.@interface[-1]='wlan2'
+  set network.wlan2.ifname='wlan2'
+  set network.wlan2.proto='static'
+  set network.wlan2.ipaddr='192.168.100.1'
+  set network.wlan2.netmask='255.255.255.0'
+
+  commit dhcp
+  commit wireless
+  commit network
+  commit
+
+  EOT
+
+wifi
+/etc/init.d/network restart
+
+exit 0
