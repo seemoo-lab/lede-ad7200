@@ -1,8 +1,12 @@
 # LEDE for Talon AD7200
+This project contains the source code to compile a LEDE image for the TP-Link Talon AD7200. With the wil6210 driver and firmware already integrated, it supports to configure the IEEE 802.11ad interface in AP, managed, and monitor mode. Therewith it allows to easily establish a 60 GHz links between multiple devices. Through the Linux OS, this allows to use the Talon AD7200 routers for arbitrary application scenarios.
+
+## WARNING
+This software might damage your hardware and may void your hardware’s warranty. Use our tools at your risk and responsibility.
 
 ## Quick Image Build Instructions
 
-This is a short build instruction to compile LEDE for the Talon AD7200. Parts of this instruction has been taken from the official [LEDE documentation](https://lede-project.org/docs/guide-developer/quickstart-build-images).
+This is a quick build instruction guide to compile a LEDE image for the Talon AD7200. Parts of this instruction has been taken from the official [LEDE documentation](https://lede-project.org/docs/guide-developer/quickstart-build-images) and has been adapted for the given architecture.
 
 First we need to make sure the dependencies are installed, you can install
 those on an Ubuntu/Debian machine (tested with ubuntu 16.4.2) with:
@@ -31,7 +35,7 @@ make defconfig
 ```
 
 Alternatively, if you need to refine your configuration, start with a clean configuration and select your preferred configuration for 
-the toolchain and firmware::
+the toolchain and firmware:
 ```bash
 cp legacy.conf .conf
 make defconfig
@@ -67,24 +71,73 @@ Please do not use the *lede-ipq806x-AD7200-squashfs-sysupgrade.bin* image, as th
 
 
 ## Device Flashing
-To flash an image to the TALON device, you need to run a TFTP server on your machine. During boot, the TALON will start a TFTP client fetch the image file (webupdate is not working, yet).
+To flash an image to the device, you need to run a TFTP server on your machine. During recovery boot, the device will start a TFTP client and fetch the image file.
 This proceedure is default recovery mode in OpenWRT/LEDE. Check the documentation at https://lede-project.org/docs/user-guide/tftpserver and https://wiki.openwrt.org/doc/howto/generic.flashing.tftp
 You can e.g. use tftpd-hpa,
 ```bash
 sudo apt-get install tftpd-hpa
 ```
-and place you image file in '/var/lib/tftpboot/'. The file must be named AD7200_1.0_tp_recovery.bin, and your machine must be setup with a fixed IP address of 192.168.0.66 in subnet 255.255.255.0. This is exactly the place, the bootloader looks for new firmware updates.
-Next, you connect the router with any of the LAN ports to your machine, press and hold the reset pin, and power on the device.
-Keep the reset button pressed for a couple of seconds until one of the LEDs starts blinking.
-During the flash process, most LEDs stay on. If they went off after while, something went wrong. Please check your network settings again. Most likely, the router couldn't find the proper image file.
-Otherwise if everthing went well, the LEDs stay on. Flashing takes some time, be patient.
-Some routers reboot after flashing, some just don't. In the latter case, there is no way to check if flashing is done.
-At some point you should take the risk, and reboot manually. If this happens too early, then you have to try (and wait) with little more patience again.
-Happy flashing and good luck :)
+and place you image file in '/var/lib/tftpboot/'. The file must be named *AD7200_1.0_tp_recovery.bin*, and your machine must be setup with fixed IP address according to the following table. 
+
+ * **image name**: *AD7200_1.0_tp_recovery.bin*
+ * **ip address**: *192.168.0.66*
+ * **net mask**: *255.255.255.0*
+
+Only at this address and with exactly this filename the bootloader checks firmware updates.
+
+Next, you connect the Talon device with any of the LAN ports to your machine, press and hold the reset pin, and power-on the device. 
+All LEDs should turn on. Keep the reset button pressed for a couple of seconds until one of the LEDs starts blinking.
+During the flash process, most LEDs stay on. If they went off again after a few seconds, something went wrong and the device restarts. 
+In this case, you should check your network settings again. Most likely, the router cannot find find the image file.
+
+If everything went well, the LEDs stay on and flashing takes some minutes. Some devices reboot after flashing, some stuck and need to be rebooted manually. Unfortunately, there is no easy way to check if flashing is completed. After around 10 - 15 minutes, you could take the risk and manually power off and on the device. If it does not boot up with your new firmware, try flashing again and be little more patient. Good luck. 
 
 ## Accessing Device via SSH
-The devices are configured with fixed IP address and SSH server running. Can can login remotely as root via:
+The devices are configured by default with fixed IP address and SSH server running. You can login remotely as root via:
 ```bash
 ssh root@192.168.0.1
 ```
 Please ensure that you have configured your client accordingly.
+
+## Customizing the Image
+You can add additional files to the image by placing them in the */files* folder.  
+
+## Establish a 60 GHz Link
+To establish a link, you need to configure one device as AP. The default image comes with a predefined configuration, you just need to start the hostapd daemon for the *wlan2* interface:
+```bash
+hostapd /etc/hostapd_wlan2.conf
+```
+This will start the AP with SSID *TALON_AD7200* on channel 2 without any encryption. Other devices in manged mode (default) and range should connect directly. Up 8 managed stations are supported to connect to one AP simultaneously. Finally you need to configure the IP Addresses (replace XXX by any number less than 255):
+```bash
+ifconfig wlan2 192.168.100.XXX
+```
+
+## Set-up Monitor Mode
+To configure a device in monitor mode on channel 2 use:
+```bash
+ifconfig wlan2 up
+iw dev wlan2 set type monitor
+iw dev wlan2 set freq 60480
+ifconfig wlan2 down
+ifconfig wlan2 up
+```
+Take note, that that under heavy load the monitor mode might not catch all network packets correctly.
+
+## Talon Tools
+This software has been released as part of [Talon Tools: The Framework for Practical IEEE 802.11ad Research](https://seemoo.de/talon-tools/). Any use of it, which results in an academic publication or other publication which includes a bibliography is encouraged to appreciate this work and include a citation the Talon Tools project and any of our papers. You can find all references on Talon Tools in our [bibtex file](https://seemoo-lab.github.io/talon-tools/talon-tools.bib). Please also check the [project page](https://seemoo.de/talon-tools/) for supplemental tools.
+
+## Give us Feedback
+We want to learn how people use this software and what aspects we might improve. Please report any issues or comments using the bug-tracker and do not hesitate to approach us via e-mail.
+
+## Contact
+* [Daniel Steinmetzer](https://seemoo.tu-darmstadt.de/dsteinmetzer) <<dsteinmetzer@seemoo.tu-darmstadt.de>>
+* Daniel Wegemer <<dwegemer@seemoo.tu-darmstadt.de>>
+
+## Powered By
+<a href="https://www.seemoo.tu-darmstadt.de">![SEEMOO logo](https://seemoo-lab.github.io/talon-tools/logos/seemoo.png)</a> &nbsp;
+<a href="https://www.nicer.tu-darmstadt.de">![NICER logo](https://seemoo-lab.github.io/talon-tools/logos/nicer.png)</a> &nbsp;
+<a href="https://www.crossing.tu-darmstadt.de">![CROSSING logo](https://seemoo-lab.github.io/talon-tools/logos/crossing.jpg)</a>&nbsp;
+<a href="https://www.crisp-da.de">![CRSIP logo](https://seemoo-lab.github.io/talon-tools/logos/crisp.jpg)</a>&nbsp;
+<a href="http://www.maki.tu-darmstadt.de/">![MAKI logo](https://seemoo-lab.github.io/talon-tools/logos/maki.png)</a> &nbsp;
+<a href="https://www.cysec.tu-darmstadt.de">![CYSEC logo](https://seemoo-lab.github.io/talon-tools/logos/cysec.jpg)</a>&nbsp;
+<a href="https://www.tu-darmstadt.de/index.en.jsp">![TU Darmstadt logo](https://seemoo-lab.github.io/talon-tools/logos/tudarmstadt.png)</a>&nbsp;
