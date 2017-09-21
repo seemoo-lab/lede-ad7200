@@ -4,6 +4,9 @@ This project contains the source code to compile a LEDE image for the TP-Link Ta
 ## WARNING
 This software might damage your hardware and may void your hardware’s warranty. Use our tools at your risk and responsibility.
 
+## Download Pre-Build Image
+To save time compiling the complete buildsystem, you can download our [pre-build images](https://github.com/seemoo-lab/lede-ad7200/releases) and directly flash it to the device (see "Device Flashing" below). If you want to integrate own functionality continue with the following build instructions.
+
 ## Quick Image Build Instructions
 
 This is a quick build instruction guide to compile a LEDE image for the Talon AD7200. Parts of this instruction has been taken from the official [LEDE documentation](https://lede-project.org/docs/guide-developer/quickstart-build-images) and has been adapted for the given architecture.
