@@ -11,14 +11,15 @@ include $(INCLUDE_DIR)/kernel.mk
 include $(INCLUDE_DIR)/version.mk
 
 PKG_NAME:=base-files
-PKG_RELEASE:=173
+PKG_RELEASE:=173.1
 PKG_FLAGS:=nonshared
 
 PKG_FILE_DEPENDS:=$(PLATFORM_DIR)/ $(GENERIC_PLATFORM_DIR)/base-files/
 PKG_BUILD_DEPENDS:=usign/host
 PKG_LICENSE:=GPL-2.0
 
-PKG_CONFIG_DEPENDS := CONFIG_SIGNED_PACKAGES CONFIG_TARGET_INIT_PATH CONFIG_TARGET_PREINIT_DISABLE_FAILSAFE
+# Extend depends from version.mk
+PKG_CONFIG_DEPENDS += CONFIG_SIGNED_PACKAGES CONFIG_TARGET_INIT_PATH CONFIG_TARGET_PREINIT_DISABLE_FAILSAFE
 
 include $(INCLUDE_DIR)/package.mk
 
@@ -137,6 +138,7 @@ define Package/base-files/install
 
 	mkdir -p $(1)/CONTROL
 	mkdir -p $(1)/dev
+	mkdir -p $(1)/etc/config
 	mkdir -p $(1)/etc/crontabs
 	mkdir -p $(1)/etc/rc.d
 	mkdir -p $(1)/overlay

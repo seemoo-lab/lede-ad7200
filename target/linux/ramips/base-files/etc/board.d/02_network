@@ -133,9 +133,7 @@ ramips_setup_interfaces()
 	awm002-evb|\
 	awm003-evb|\
 	c20i|\
-	c50|\
 	dir-645|\
-	dir-860l-b1|\
 	f5d8235-v2|\
 	gl-mt300a|\
 	gl-mt300n|\
@@ -196,6 +194,14 @@ ramips_setup_interfaces()
 	wn3000rpv3|\
 	wrh-300cr)
 		ucidef_set_interface_lan "eth0"
+		;;
+	c50)
+		ucidef_add_switch "switch0" \
+			"1:lan:3" "2:lan:4" "3:lan:1" "4:lan:2" "0:wan" "6@eth0"
+		;;
+	dir-860l-b1)
+		ucidef_add_switch "switch0" \
+			"1:lan:4" "2:lan:3" "3:lan:2" "4:lan:1" "0:wan" "6@eth0"
 		;;
 	duzun-dm06)
 		ucidef_add_switch "switch0" \

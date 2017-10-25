@@ -441,6 +441,7 @@ define Device/tl-wr710n-v1
     DEVICE_PROFILE := TLWR710
     TPLINK_HWID := 0x07100001
     CONSOLE := ttyATH0,115200
+    IMAGE/factory.bin := append-rootfs | mktplinkfw factory -C US
 endef
 
 define Device/tl-wr710n-v2
@@ -943,6 +944,7 @@ endef
 define Device/tl-wa850re-v1
     $(Device/tplink-4mlzma)
     DEVICE_TITLE := TP-LINK TL-WA850RE
+    DEVICE_PACKAGES := rssileds
     BOARDNAME := TL-WA850RE
     DEVICE_PROFILE := TLWA850
     TPLINK_HWID := 0x08500001
