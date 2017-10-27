@@ -10,10 +10,27 @@ uci -q batch <<-EOT
   set system.@system[0].timezone='CET-1CEST,M3.5.0,M10.5.0/3'
   set system.@system[0].hostname='TALON'
 
+  # Ignore DHCPD on LAN
+  set dhcp.lan.ignore=1
+  
+  # Configure LAN
   del network.lan.type
-  set network.lan.proto='static'
-  set network.lan.ipaddr='192.168.0.1'
-  set network.lan.netmask='255.255.255.0'
+  set network.lan.proto='dhcp'
+
+  add network interface
+  rename network.@interface[-1]='lan_default'
+  set network.lan_default.ifname='eth1'
+  set network.lan_default.proto='static'
+  set network.lan_default.ipaddr='192.168.0.1'
+  set network.lan_default.netmask='255.255.255.0'
+
+  add network interface
+  rename network.@interface[-1]='lan6'
+  set network.lan6.ifname='eth1'
+  set network.lan6.proto='dhcpv6'
+  set network.lan6.ip6ifaceid 'random'
+  set network.lan6.ip6hint '0d0d'
+  set network.lan6.ip6assign '64'
 
   # Configure WLAN0
   set wireless.@wifi-device[0].disabled='0'
@@ -55,6 +72,13 @@ uci -q batch <<-EOT
   set network.wlan2.proto='static'
   set network.wlan2.ipaddr='192.168.100.1'
   set network.wlan2.netmask='255.255.255.0'
+
+  add network interface
+  rename network.@interface[-1]='wlan2_6'
+  set network.wlan2_6.proto='static'
+  set network.wlan2_6.ip6ifaceid 'random'
+  set network.wlan2_6.ip6hint '0d0d'
+  set network.wlan2_6.ip6assign '64'
 
   commit dhcp
   commit wireless
