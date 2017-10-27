@@ -4,6 +4,8 @@
 /etc/init.d/odhcpd disable
 /etc/init.d/firewall disable
 
+chmod 600 /etc/dropbear/authorized_keys
+
 # Set Host configuration 
 uci -q batch <<-EOT
 
