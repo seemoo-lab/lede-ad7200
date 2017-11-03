@@ -1,0 +1,28 @@
+#!/bin/sh /etc/rc.common
+# Hostapd Deamon for wlan2
+# Copyright (C) 2017 Daniel Steinmetzer
+ 
+START=94
+STOP=94
+
+CFG_FILE="/etc/hostapd_wlan2.conf"
+ 
+start() {        
+        echo "Start hostapd for wlan2"
+        SSID=$(uci get wireless.default_radio2.ssid)
+        sed -i "s/\(ssid *= *\).*/\1$SSID/" $CFG_FILE
+        /usr/sbin/hostapd -B $CFG_FILE
+}                 
+ 
+stop() {          
+        echo "Stop hostapd for wlan2"
+        killall hostapd
+}
+
+restart(){
+        echo "Restart hostapd for wlan2"
+        killall hostapd
+        SSID=$(uci get wireless.default_radio2.ssid)
+        sed -i "s/\(ssid *= *\).*/\1$SSID/" $CFG_FILE
+        /usr/sbin/hostapd -B $CFG_FILE
+}

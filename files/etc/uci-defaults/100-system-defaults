@@ -5,6 +5,7 @@
 /etc/init.d/firewall disable
 
 chmod 600 /etc/dropbear/authorized_keys
+chmod a+x /etc/init.d/hostapd_wlan2
 
 # Set Host configuration 
 uci -q batch <<-EOT
