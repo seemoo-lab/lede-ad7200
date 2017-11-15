@@ -7,11 +7,14 @@
 chmod 600 /etc/dropbear/authorized_keys
 chmod a+x /etc/init.d/hostapd_wlan2
 
+ADDR=$(cat /sys/class/net/eth1/address)
+MYHOSTNAME=$(echo T${ADDR:9:9} | sed 's/://g')
+
 # Set Host configuration 
 uci -q batch <<-EOT
 
   set system.@system[0].timezone='CET-1CEST,M3.5.0,M10.5.0/3'
-  set system.@system[0].hostname='TALON'
+  set system.@system[0].hostname=$MYHOSTNAME
 
   # Ignore DHCPD on LAN
   set dhcp.lan.ignore=1
