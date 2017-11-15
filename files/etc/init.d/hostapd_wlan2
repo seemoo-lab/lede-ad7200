@@ -6,23 +6,40 @@ START=94
 STOP=94
 
 CFG_FILE="/etc/hostapd_wlan2.conf"
+CTRL_FILE="/var/run/hostapd/wlan2"
  
-start() {        
-        echo "Start hostapd for wlan2"
-        SSID=$(uci get wireless.default_radio2.ssid)
-        sed -i "s/\(ssid *= *\).*/\1$SSID/" $CFG_FILE
-        /usr/sbin/hostapd -B $CFG_FILE
+start() {
+  if [ -e "$CTRL_FILE" ]
+  then
+    echo "Hostapd is already running for wlan2"
+    exit 1
+  else
+    echo "Start hostapd for wlan2"
+    SSID=$(uci get wireless.default_radio2.ssid)
+    sed -i "s/\(ssid *= *\).*/\1$SSID/" $CFG_FILE
+    /usr/sbin/hostapd -B $CFG_FILE
+  fi        
 }                 
  
 stop() {          
-        echo "Stop hostapd for wlan2"
-        killall hostapd
+  echo "Stop hostapd for wlan2"
+  killall hostapd
 }
 
 restart(){
-        echo "Restart hostapd for wlan2"
-        killall hostapd
-        SSID=$(uci get wireless.default_radio2.ssid)
-        sed -i "s/\(ssid *= *\).*/\1$SSID/" $CFG_FILE
-        /usr/sbin/hostapd -B $CFG_FILE
+  echo "Restart hostapd for wlan2"
+  killall hostapd
+
+  sleep 1
+
+  if [ -e "$CTRL_FILE" ]
+  then
+    echo "Hostapd is already running for wlan2"
+    exit 1
+  else
+    echo "Start hostapd for wlan2"
+    SSID=$(uci get wireless.default_radio2.ssid)
+    sed -i "s/\(ssid *= *\).*/\1$SSID/" $CFG_FILE
+    /usr/sbin/hostapd -B $CFG_FILE
+  fi
 }
