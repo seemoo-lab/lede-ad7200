@@ -33,14 +33,14 @@ Fetch the latest package definitions and install corresponding symlinks:
 
 To build an image with the default configuration for the Talon AD7200, simply prepare the build process with:
 ```bash
-cp default.conf .conf
+cp default.config .conf
 make defconfig
 ```
 
 Alternatively, if you need to refine your configuration, start with a clean configuration and select your preferred configuration for 
 the toolchain and firmware:
 ```bash
-cp legacy.conf .conf
+cp legacy.config .conf
 make defconfig
 make menuconfig
 ```
