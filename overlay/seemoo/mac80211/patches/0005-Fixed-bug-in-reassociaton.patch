@@ -1,0 +1,25 @@
+From f97aea5175dc1b0379e76c493c8f294d0142c20b Mon Sep 17 00:00:00 2001
+From: Daniel Wegemer <dwegemer@seemoo.tu-darmstadt.de>
+Date: Wed, 29 Nov 2017 11:13:35 +0100
+Subject: [PATCH] Update debugfs.c, fixed bug in reassociaton
+
+---
+ debugfs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
+index 332a2bb..a74354c 100644
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -59,7 +59,7 @@ u8 my_console_uc[MY_CONSOLE_MAX_LEN];
+ u32 my_console_fw_len;
+ u32 my_console_uc_len;
+ #define MY_CONSOLE_BASE_PTR_FW 0x8ffff0
+-#define MY_CONSOLE_BASE_PTR_UC 0x935ff4
++#define MY_CONSOLE_BASE_PTR_UC 0x9386f4
+ 
+ struct wil6210_priv *my_glob_wil = NULL;
+ 
+-- 
+2.13.6 (Apple Git-96)
+
