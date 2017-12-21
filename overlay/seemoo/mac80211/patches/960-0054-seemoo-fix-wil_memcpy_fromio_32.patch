@@ -1,7 +1,7 @@
-From d62f73c0128947f51c724a9606dffc0f6ed99489 Mon Sep 17 00:00:00 2001
+From b5b9a7629581e4716414dc044d3691667b907d15 Mon Sep 17 00:00:00 2001
 From: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
 Date: Tue, 5 Sep 2017 09:45:46 +0200
-Subject: [PATCH 54/59] seemoo: fix wil_memcpy_fromio_32
+Subject: [PATCH 54/57] seemoo: fix wil_memcpy_fromio_32
 
 Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
 ---

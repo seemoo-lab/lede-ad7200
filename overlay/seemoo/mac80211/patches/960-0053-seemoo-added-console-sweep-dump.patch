@@ -1,7 +1,7 @@
-From b5cacd4757be79e3a27d2f61462ce1bb9d98991f Mon Sep 17 00:00:00 2001
+From ebdc1506c2e4b952f56259de936fef4a5a3f72fd Mon Sep 17 00:00:00 2001
 From: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
 Date: Tue, 5 Sep 2017 09:44:41 +0200
-Subject: [PATCH 53/59] seemoo: added console sweep dump
+Subject: [PATCH 53/57] seemoo: added console sweep dump
 
 Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
 ---

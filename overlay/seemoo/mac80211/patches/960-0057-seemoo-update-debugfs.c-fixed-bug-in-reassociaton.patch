@@ -1,7 +1,7 @@
-From a839d2760b7db05b624df2a97fab930434b78f9e Mon Sep 17 00:00:00 2001
+From ed649811d1be2ba461fa82808817fb7a63e2bd09 Mon Sep 17 00:00:00 2001
 From: Daniel Wegemer <dwegemer@seemoo.tu-darmstadt.de>
 Date: Wed, 29 Nov 2017 11:13:35 +0100
-Subject: [PATCH 59/59] seemoo: update debugfs.c, fixed bug in reassociaton
+Subject: [PATCH 57/57] seemoo: update debugfs.c, fixed bug in reassociaton
 
 Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
 ---
