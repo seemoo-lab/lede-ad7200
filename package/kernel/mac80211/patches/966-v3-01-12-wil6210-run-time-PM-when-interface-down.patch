@@ -1,0 +1,591 @@
+From patchwork Tue Nov 14 13:25:33 2017
+Content-Type: text/plain; charset="utf-8"
+MIME-Version: 1.0
+Content-Transfer-Encoding: 7bit
+Subject: [v3,01/12] wil6210: run-time PM when interface down
+From: Maya Erez <qca_merez@qca.qualcomm.com>
+X-Patchwork-Id: 10057625
+Message-Id: <1510665944-30198-2-git-send-email-qca_merez@qca.qualcomm.com>
+To: Kalle Valo <kvalo@codeaurora.org>
+Cc: Lazar Alexei <QCA_ailizaro@QCA.qualcomm.com>,
+ linux-wireless@vger.kernel.org, wil6210@qca.qualcomm.com,
+ Maya Erez <qca_merez@qca.qualcomm.com>
+Date: Tue, 14 Nov 2017 15:25:33 +0200
+
+From: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
+
+Allow run-time suspend when interface is down, keep card alive when
+interface is up.
+If driver is in wmi only or debug_fw mode run-time PM won't suspend.
+
+Signed-off-by: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+---
+ drivers/net/wireless/ath/wil6210/debugfs.c  | 96 ++++++++++++++++++++++++++---
+ drivers/net/wireless/ath/wil6210/ethtool.c  | 15 +++++
+ drivers/net/wireless/ath/wil6210/netdev.c   | 18 +++++-
+ drivers/net/wireless/ath/wil6210/pcie_bus.c | 44 ++++++++++---
+ drivers/net/wireless/ath/wil6210/pm.c       | 66 ++++++++++++++++++++
+ drivers/net/wireless/ath/wil6210/wil6210.h  | 18 +++++-
+ 6 files changed, 237 insertions(+), 20 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
+index e58dc6d..06b9c56 100644
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -242,12 +242,19 @@ static void wil_print_ring(struct seq_file *s, const char *prefix,
+ static int wil_mbox_debugfs_show(struct seq_file *s, void *data)
+ {
+ 	struct wil6210_priv *wil = s->private;
++	int ret;
++
++	ret = wil_pm_runtime_get(wil);
++	if (ret < 0)
++		return ret;
+ 
+ 	wil_print_ring(s, "tx", wil->csr + HOST_MBOX +
+ 		       offsetof(struct wil6210_mbox_ctl, tx));
+ 	wil_print_ring(s, "rx", wil->csr + HOST_MBOX +
+ 		       offsetof(struct wil6210_mbox_ctl, rx));
+ 
++	wil_pm_runtime_put(wil);
++
+ 	return 0;
+ }
+ 
+@@ -265,15 +272,37 @@ static int wil_mbox_seq_open(struct inode *inode, struct file *file)
+ 
+ static int wil_debugfs_iomem_x32_set(void *data, u64 val)
+ {
+-	writel(val, (void __iomem *)data);
++	struct wil_debugfs_iomem_data *d = (struct
++					    wil_debugfs_iomem_data *)data;
++	struct wil6210_priv *wil = d->wil;
++	int ret;
++
++	ret = wil_pm_runtime_get(wil);
++	if (ret < 0)
++		return ret;
++
++	writel(val, (void __iomem *)d->offset);
+ 	wmb(); /* make sure write propagated to HW */
+ 
++	wil_pm_runtime_put(wil);
++
+ 	return 0;
+ }
+ 
+ static int wil_debugfs_iomem_x32_get(void *data, u64 *val)
+ {
+-	*val = readl((void __iomem *)data);
++	struct wil_debugfs_iomem_data *d = (struct
++					    wil_debugfs_iomem_data *)data;
++	struct wil6210_priv *wil = d->wil;
++	int ret;
++
++	ret = wil_pm_runtime_get(wil);
++	if (ret < 0)
++		return ret;
++
++	*val = readl((void __iomem *)d->offset);
++
++	wil_pm_runtime_put(wil);
+ 
+ 	return 0;
+ }
+@@ -284,10 +313,21 @@ static int wil_debugfs_iomem_x32_get(void *data, u64 *val)
+ static struct dentry *wil_debugfs_create_iomem_x32(const char *name,
+ 						   umode_t mode,
+ 						   struct dentry *parent,
+-						   void *value)
++						   void *value,
++						   struct wil6210_priv *wil)
+ {
+-	return debugfs_create_file(name, mode, parent, value,
+-				   &fops_iomem_x32);
++	struct dentry *file;
++	struct wil_debugfs_iomem_data *data = &wil->dbg_data.data_arr[
++					      wil->dbg_data.iomem_data_count];
++
++	data->wil = wil;
++	data->offset = value;
++
++	file = debugfs_create_file(name, mode, parent, data, &fops_iomem_x32);
++	if (!IS_ERR_OR_NULL(file))
++		wil->dbg_data.iomem_data_count++;
++
++	return file;
+ }
+ 
+ static int wil_debugfs_ulong_set(void *data, u64 val)
+@@ -346,7 +386,8 @@ static void wil6210_debugfs_init_offset(struct wil6210_priv *wil,
+ 		case doff_io32:
+ 			f = wil_debugfs_create_iomem_x32(tbl[i].name,
+ 							 tbl[i].mode, dbg,
+-							 base + tbl[i].off);
++							 base + tbl[i].off,
++							 wil);
+ 			break;
+ 		case doff_u8:
+ 			f = debugfs_create_u8(tbl[i].name, tbl[i].mode, dbg,
+@@ -475,13 +516,22 @@ static int wil6210_debugfs_create_ITR_CNT(struct wil6210_priv *wil,
+ static int wil_memread_debugfs_show(struct seq_file *s, void *data)
+ {
+ 	struct wil6210_priv *wil = s->private;
+-	void __iomem *a = wmi_buffer(wil, cpu_to_le32(mem_addr));
++	void __iomem *a;
++	int ret;
++
++	ret = wil_pm_runtime_get(wil);
++	if (ret < 0)
++		return ret;
++
++	a = wmi_buffer(wil, cpu_to_le32(mem_addr));
+ 
+ 	if (a)
+ 		seq_printf(s, "[0x%08x] = 0x%08x\n", mem_addr, readl(a));
+ 	else
+ 		seq_printf(s, "[0x%08x] = INVALID\n", mem_addr);
+ 
++	wil_pm_runtime_put(wil);
++
+ 	return 0;
+ }
+ 
+@@ -502,10 +552,12 @@ static ssize_t wil_read_file_ioblob(struct file *file, char __user *user_buf,
+ {
+ 	enum { max_count = 4096 };
+ 	struct wil_blob_wrapper *wil_blob = file->private_data;
++	struct wil6210_priv *wil = wil_blob->wil;
+ 	loff_t pos = *ppos;
+ 	size_t available = wil_blob->blob.size;
+ 	void *buf;
+ 	size_t ret;
++	int rc;
+ 
+ 	if (test_bit(wil_status_suspending, wil_blob->wil->status) ||
+ 	    test_bit(wil_status_suspended, wil_blob->wil->status))
+@@ -526,10 +578,19 @@ static ssize_t wil_read_file_ioblob(struct file *file, char __user *user_buf,
+ 	if (!buf)
+ 		return -ENOMEM;
+ 
++	rc = wil_pm_runtime_get(wil);
++	if (rc < 0) {
++		kfree(buf);
++		return rc;
++	}
++
+ 	wil_memcpy_fromio_32(buf, (const void __iomem *)
+ 			     wil_blob->blob.data + pos, count);
+ 
+ 	ret = copy_to_user(user_buf, buf, count);
++
++	wil_pm_runtime_put(wil);
++
+ 	kfree(buf);
+ 	if (ret == count)
+ 		return -EFAULT;
+@@ -1736,14 +1797,31 @@ static void wil6210_debugfs_init_isr(struct wil6210_priv *wil,
+ 	{},
+ };
+ 
++static const int dbg_off_count = 4 * (ARRAY_SIZE(isr_off) - 1) +
++				ARRAY_SIZE(dbg_wil_regs) - 1 +
++				ARRAY_SIZE(pseudo_isr_off) - 1 +
++				ARRAY_SIZE(lgc_itr_cnt_off) - 1 +
++				ARRAY_SIZE(tx_itr_cnt_off) - 1 +
++				ARRAY_SIZE(rx_itr_cnt_off) - 1;
++
+ int wil6210_debugfs_init(struct wil6210_priv *wil)
+ {
+ 	struct dentry *dbg = wil->debug = debugfs_create_dir(WIL_NAME,
+ 			wil_to_wiphy(wil)->debugfsdir);
+-
+ 	if (IS_ERR_OR_NULL(dbg))
+ 		return -ENODEV;
+ 
++	wil->dbg_data.data_arr = kcalloc(dbg_off_count,
++					 sizeof(struct wil_debugfs_iomem_data),
++					 GFP_KERNEL);
++	if (!wil->dbg_data.data_arr) {
++		debugfs_remove_recursive(dbg);
++		wil->debug = NULL;
++		return -ENOMEM;
++	}
++
++	wil->dbg_data.iomem_data_count = 0;
++
+ 	wil_pmc_init(wil);
+ 
+ 	wil6210_debugfs_init_files(wil, dbg);
+@@ -1768,6 +1846,8 @@ void wil6210_debugfs_remove(struct wil6210_priv *wil)
+ 	debugfs_remove_recursive(wil->debug);
+ 	wil->debug = NULL;
+ 
++	kfree(wil->dbg_data.data_arr);
++
+ 	/* free pmc memory without sending command to fw, as it will
+ 	 * be reset on the way down anyway
+ 	 */
+diff --git a/drivers/net/wireless/ath/wil6210/ethtool.c b/drivers/net/wireless/ath/wil6210/ethtool.c
+index adcfef4..66200f6 100644
+--- a/drivers/net/wireless/ath/wil6210/ethtool.c
++++ b/drivers/net/wireless/ath/wil6210/ethtool.c
+@@ -47,9 +47,14 @@ static int wil_ethtoolops_get_coalesce(struct net_device *ndev,
+ 	struct wil6210_priv *wil = ndev_to_wil(ndev);
+ 	u32 tx_itr_en, tx_itr_val = 0;
+ 	u32 rx_itr_en, rx_itr_val = 0;
++	int ret;
+ 
+ 	wil_dbg_misc(wil, "ethtoolops_get_coalesce\n");
+ 
++	ret = wil_pm_runtime_get(wil);
++	if (ret < 0)
++		return ret;
++
+ 	tx_itr_en = wil_r(wil, RGF_DMA_ITR_TX_CNT_CTL);
+ 	if (tx_itr_en & BIT_DMA_ITR_TX_CNT_CTL_EN)
+ 		tx_itr_val = wil_r(wil, RGF_DMA_ITR_TX_CNT_TRSH);
+@@ -58,6 +63,8 @@ static int wil_ethtoolops_get_coalesce(struct net_device *ndev,
+ 	if (rx_itr_en & BIT_DMA_ITR_RX_CNT_CTL_EN)
+ 		rx_itr_val = wil_r(wil, RGF_DMA_ITR_RX_CNT_TRSH);
+ 
++	wil_pm_runtime_put(wil);
++
+ 	cp->tx_coalesce_usecs = tx_itr_val;
+ 	cp->rx_coalesce_usecs = rx_itr_val;
+ 	return 0;
+@@ -67,6 +74,7 @@ static int wil_ethtoolops_set_coalesce(struct net_device *ndev,
+ 				       struct ethtool_coalesce *cp)
+ {
+ 	struct wil6210_priv *wil = ndev_to_wil(ndev);
++	int ret;
+ 
+ 	wil_dbg_misc(wil, "ethtoolops_set_coalesce: rx %d usec, tx %d usec\n",
+ 		     cp->rx_coalesce_usecs, cp->tx_coalesce_usecs);
+@@ -86,8 +94,15 @@ static int wil_ethtoolops_set_coalesce(struct net_device *ndev,
+ 
+ 	wil->tx_max_burst_duration = cp->tx_coalesce_usecs;
+ 	wil->rx_max_burst_duration = cp->rx_coalesce_usecs;
++
++	ret = wil_pm_runtime_get(wil);
++	if (ret < 0)
++		return ret;
++
+ 	wil_configure_interrupt_moderation(wil);
+ 
++	wil_pm_runtime_put(wil);
++
+ 	return 0;
+ 
+ out_bad:
+diff --git a/drivers/net/wireless/ath/wil6210/netdev.c b/drivers/net/wireless/ath/wil6210/netdev.c
+index 4a6ab2d..b641ac1 100644
+--- a/drivers/net/wireless/ath/wil6210/netdev.c
++++ b/drivers/net/wireless/ath/wil6210/netdev.c
+@@ -21,6 +21,7 @@
+ static int wil_open(struct net_device *ndev)
+ {
+ 	struct wil6210_priv *wil = ndev_to_wil(ndev);
++	int rc;
+ 
+ 	wil_dbg_misc(wil, "open\n");
+ 
+@@ -30,16 +31,29 @@ static int wil_open(struct net_device *ndev)
+ 		return -EINVAL;
+ 	}
+ 
+-	return wil_up(wil);
++	rc = wil_pm_runtime_get(wil);
++	if (rc < 0)
++		return rc;
++
++	rc = wil_up(wil);
++	if (rc)
++		wil_pm_runtime_put(wil);
++
++	return rc;
+ }
+ 
+ static int wil_stop(struct net_device *ndev)
+ {
+ 	struct wil6210_priv *wil = ndev_to_wil(ndev);
++	int rc;
+ 
+ 	wil_dbg_misc(wil, "stop\n");
+ 
+-	return wil_down(wil);
++	rc = wil_down(wil);
++	if (!rc)
++		wil_pm_runtime_put(wil);
++
++	return rc;
+ }
+ 
+ static const struct net_device_ops wil_netdev_ops = {
+diff --git a/drivers/net/wireless/ath/wil6210/pcie_bus.c b/drivers/net/wireless/ath/wil6210/pcie_bus.c
+index 6a3ab4b..f281220 100644
+--- a/drivers/net/wireless/ath/wil6210/pcie_bus.c
++++ b/drivers/net/wireless/ath/wil6210/pcie_bus.c
+@@ -21,6 +21,7 @@
+ #include <linux/suspend.h>
+ #include "wil6210.h"
+ #include <linux/rtnetlink.h>
++#include <linux/pm_runtime.h>
+ 
+ static bool use_msi = true;
+ module_param(use_msi, bool, 0444);
+@@ -31,10 +32,8 @@
+ MODULE_PARM_DESC(ftm_mode, " Set factory test mode, default - false");
+ 
+ #ifdef CONFIG_PM
+-#ifdef CONFIG_PM_SLEEP
+ static int wil6210_pm_notify(struct notifier_block *notify_block,
+ 			     unsigned long mode, void *unused);
+-#endif /* CONFIG_PM_SLEEP */
+ #endif /* CONFIG_PM */
+ 
+ static
+@@ -320,7 +319,6 @@ static int wil_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	}
+ 
+ #ifdef CONFIG_PM
+-#ifdef CONFIG_PM_SLEEP
+ 	wil->pm_notify.notifier_call = wil6210_pm_notify;
+ 	rc = register_pm_notifier(&wil->pm_notify);
+ 	if (rc)
+@@ -328,11 +326,11 @@ static int wil_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 		 * be prevented in a later phase if needed
+ 		 */
+ 		wil_err(wil, "register_pm_notifier failed: %d\n", rc);
+-#endif /* CONFIG_PM_SLEEP */
+ #endif /* CONFIG_PM */
+ 
+ 	wil6210_debugfs_init(wil);
+ 
++	wil_pm_runtime_allow(wil);
+ 
+ 	return 0;
+ 
+@@ -360,11 +358,11 @@ static void wil_pcie_remove(struct pci_dev *pdev)
+ 	wil_dbg_misc(wil, "pcie_remove\n");
+ 
+ #ifdef CONFIG_PM
+-#ifdef CONFIG_PM_SLEEP
+ 	unregister_pm_notifier(&wil->pm_notify);
+-#endif /* CONFIG_PM_SLEEP */
+ #endif /* CONFIG_PM */
+ 
++	wil_pm_runtime_forbid(wil);
++
+ 	wil6210_debugfs_remove(wil);
+ 	rtnl_lock();
+ 	wil_p2p_wdev_free(wil);
+@@ -386,7 +384,6 @@ static void wil_pcie_remove(struct pci_dev *pdev)
+ MODULE_DEVICE_TABLE(pci, wil6210_pcie_ids);
+ 
+ #ifdef CONFIG_PM
+-#ifdef CONFIG_PM_SLEEP
+ 
+ static int wil6210_suspend(struct device *dev, bool is_runtime)
+ {
+@@ -490,12 +487,43 @@ static int wil6210_pm_resume(struct device *dev)
+ {
+ 	return wil6210_resume(dev, false);
+ }
+-#endif /* CONFIG_PM_SLEEP */
+ 
++static int wil6210_pm_runtime_idle(struct device *dev)
++{
++	struct pci_dev *pdev = to_pci_dev(dev);
++	struct wil6210_priv *wil = pci_get_drvdata(pdev);
++
++	wil_dbg_pm(wil, "Runtime idle\n");
++
++	return wil_can_suspend(wil, true);
++}
++
++static int wil6210_pm_runtime_resume(struct device *dev)
++{
++	return wil6210_resume(dev, true);
++}
++
++static int wil6210_pm_runtime_suspend(struct device *dev)
++{
++	struct pci_dev *pdev = to_pci_dev(dev);
++	struct wil6210_priv *wil = pci_get_drvdata(pdev);
++
++	if (test_bit(wil_status_suspended, wil->status)) {
++		wil_dbg_pm(wil, "trying to suspend while suspended\n");
++		return 1;
++	}
++
++	return wil6210_suspend(dev, true);
++}
+ #endif /* CONFIG_PM */
+ 
+ static const struct dev_pm_ops wil6210_pm_ops = {
++#ifdef CONFIG_PM
+ 	SET_SYSTEM_SLEEP_PM_OPS(wil6210_pm_suspend, wil6210_pm_resume)
++	SET_RUNTIME_PM_OPS(wil6210_pm_runtime_suspend,
++			   wil6210_pm_runtime_resume,
++			   wil6210_pm_runtime_idle)
++#endif /* CONFIG_PM */
+ };
+ 
+ static struct pci_driver wil6210_driver = {
+diff --git a/drivers/net/wireless/ath/wil6210/pm.c b/drivers/net/wireless/ath/wil6210/pm.c
+index 8f5d1b44..43699ac 100644
+--- a/drivers/net/wireless/ath/wil6210/pm.c
++++ b/drivers/net/wireless/ath/wil6210/pm.c
+@@ -16,15 +16,30 @@
+ 
+ #include "wil6210.h"
+ #include <linux/jiffies.h>
++#include <linux/pm_runtime.h>
++
++#define WIL6210_AUTOSUSPEND_DELAY_MS (1000)
+ 
+ int wil_can_suspend(struct wil6210_priv *wil, bool is_runtime)
+ {
+ 	int rc = 0;
+ 	struct wireless_dev *wdev = wil->wdev;
+ 	struct net_device *ndev = wil_to_ndev(wil);
++	bool wmi_only = test_bit(WMI_FW_CAPABILITY_WMI_ONLY,
++				 wil->fw_capabilities);
+ 
+ 	wil_dbg_pm(wil, "can_suspend: %s\n", is_runtime ? "runtime" : "system");
+ 
++	if (wmi_only || debug_fw) {
++		wil_dbg_pm(wil, "Deny any suspend - %s mode\n",
++			   wmi_only ? "wmi_only" : "debug_fw");
++		rc = -EBUSY;
++		goto out;
++	}
++	if (is_runtime && !wil->platform_ops.suspend) {
++		rc = -EBUSY;
++		goto out;
++	}
+ 	if (!(ndev->flags & IFF_UP)) {
+ 		/* can always sleep when down */
+ 		wil_dbg_pm(wil, "Interface is down\n");
+@@ -44,6 +59,10 @@ int wil_can_suspend(struct wil6210_priv *wil, bool is_runtime)
+ 	/* interface is running */
+ 	switch (wdev->iftype) {
+ 	case NL80211_IFTYPE_MONITOR:
++		wil_dbg_pm(wil, "Sniffer\n");
++		rc = -EBUSY;
++		goto out;
++	/* for STA-like interface, don't runtime suspend */
+ 	case NL80211_IFTYPE_STATION:
+ 	case NL80211_IFTYPE_P2P_CLIENT:
+ 		if (test_bit(wil_status_fwconnecting, wil->status)) {
+@@ -51,6 +70,12 @@ int wil_can_suspend(struct wil6210_priv *wil, bool is_runtime)
+ 			rc = -EBUSY;
+ 			goto out;
+ 		}
++		/* Runtime pm not supported in case the interface is up */
++		if (is_runtime) {
++			wil_dbg_pm(wil, "STA-like interface\n");
++			rc = -EBUSY;
++			goto out;
++		}
+ 		break;
+ 	/* AP-like interface - can't suspend */
+ 	default:
+@@ -348,3 +373,44 @@ int wil_resume(struct wil6210_priv *wil, bool is_runtime)
+ 		   is_runtime ? "runtime" : "system", rc, suspend_time_usec);
+ 	return rc;
+ }
++
++void wil_pm_runtime_allow(struct wil6210_priv *wil)
++{
++	struct device *dev = wil_to_dev(wil);
++
++	pm_runtime_put_noidle(dev);
++	pm_runtime_set_autosuspend_delay(dev, WIL6210_AUTOSUSPEND_DELAY_MS);
++	pm_runtime_use_autosuspend(dev);
++	pm_runtime_allow(dev);
++}
++
++void wil_pm_runtime_forbid(struct wil6210_priv *wil)
++{
++	struct device *dev = wil_to_dev(wil);
++
++	pm_runtime_forbid(dev);
++	pm_runtime_get_noresume(dev);
++}
++
++int wil_pm_runtime_get(struct wil6210_priv *wil)
++{
++	int rc;
++	struct device *dev = wil_to_dev(wil);
++
++	rc = pm_runtime_get_sync(dev);
++	if (rc < 0) {
++		wil_err(wil, "pm_runtime_get_sync() failed, rc = %d\n", rc);
++		pm_runtime_put_noidle(dev);
++		return rc;
++	}
++
++	return 0;
++}
++
++void wil_pm_runtime_put(struct wil6210_priv *wil)
++{
++	struct device *dev = wil_to_dev(wil);
++
++	pm_runtime_mark_last_busy(dev);
++	pm_runtime_put_autosuspend(dev);
++}
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
+index 1e340d0..533cbb3 100644
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
+@@ -616,6 +616,16 @@ struct blink_on_off_time {
+ 	u32 off_ms;
+ };
+ 
++struct wil_debugfs_iomem_data {
++	void *offset;
++	struct wil6210_priv *wil;
++};
++
++struct wil_debugfs_data {
++	struct wil_debugfs_iomem_data *data_arr;
++	int iomem_data_count;
++};
++
+ extern struct blink_on_off_time led_blink_time[WIL_LED_TIME_LAST];
+ extern u8 led_id;
+ extern u8 led_polarity;
+@@ -708,6 +718,7 @@ struct wil6210_priv {
+ 	u8 abft_len;
+ 	u8 wakeup_trigger;
+ 	struct wil_suspend_stats suspend_stats;
++	struct wil_debugfs_data dbg_data;
+ 
+ 	void *platform_handle;
+ 	struct wil_platform_ops platform_ops;
+@@ -732,9 +743,7 @@ struct wil6210_priv {
+ 	int fw_calib_result;
+ 
+ #ifdef CONFIG_PM
+-#ifdef CONFIG_PM_SLEEP
+ 	struct notifier_block pm_notify;
+-#endif /* CONFIG_PM_SLEEP */
+ #endif /* CONFIG_PM */
+ 
+ 	bool suspend_resp_rcvd;
+@@ -999,6 +1008,11 @@ int wil_request_firmware(struct wil6210_priv *wil, const char *name,
+ 			 bool load);
+ bool wil_fw_verify_file_exists(struct wil6210_priv *wil, const char *name);
+ 
++void wil_pm_runtime_allow(struct wil6210_priv *wil);
++void wil_pm_runtime_forbid(struct wil6210_priv *wil);
++int wil_pm_runtime_get(struct wil6210_priv *wil);
++void wil_pm_runtime_put(struct wil6210_priv *wil);
++
+ int wil_can_suspend(struct wil6210_priv *wil, bool is_runtime);
+ int wil_suspend(struct wil6210_priv *wil, bool is_runtime);
+ int wil_resume(struct wil6210_priv *wil, bool is_runtime);
