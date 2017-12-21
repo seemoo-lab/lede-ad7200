@@ -1,7 +1,7 @@
-From 19691165f8247d712000314c7b6f33eb6aa460ea Mon Sep 17 00:00:00 2001
+From 31b1be818163c2843f132573f274fdc30db57aff Mon Sep 17 00:00:00 2001
 From: Maya Erez <qca_merez@qca.qualcomm.com>
 Date: Thu, 3 Aug 2017 22:08:18 +0300
-Subject: [PATCH 30/59] wil6210: notify wiphy on wowlan support
+Subject: [PATCH 30/57] wil6210: notify wiphy on wowlan support
 
 Set wowlan to indicate that 11ad device can wake-up
 on any trigger and disconnect.
@@ -12,10 +12,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/cfg80211.c | 10 ++++++++++
  1 file changed, 10 insertions(+)
 
-diff --git a/wil6210/cfg80211.c b/wil6210/cfg80211.c
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
 index 1c1dddd..4f9addd 100644
---- a/wil6210/cfg80211.c
-+++ b/wil6210/cfg80211.c
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
 @@ -25,6 +25,12 @@ bool disable_ap_sme;
  module_param(disable_ap_sme, bool, 0444);
  MODULE_PARM_DESC(disable_ap_sme, " let user space handle AP mode SME");

@@ -1,7 +1,7 @@
-From 4e4cc02b1e4bb42e5849d66c06614773f7d81563 Mon Sep 17 00:00:00 2001
+From a6f8051a6da7a5cb949858f5565272047b49622a Mon Sep 17 00:00:00 2001
 From: Maya Erez <qca_merez@qca.qualcomm.com>
 Date: Wed, 5 Apr 2017 14:58:12 +0300
-Subject: [PATCH 18/59] wil6210: remove HALP voting in debugfs ioblob
+Subject: [PATCH 18/57] wil6210: remove HALP voting in debugfs ioblob
 
 debugfs ioblob function is called by the FW logs scripts
 to copy the FW logs via PCIe.
@@ -18,10 +18,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wil6210.h |  6 ------
  3 files changed, 2 insertions(+), 26 deletions(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index 3e8cdf1..5648ebb 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -524,9 +524,8 @@ static ssize_t wil_read_file_ioblob(struct file *file, char __user *user_buf,
  	if (!buf)
  		return -ENOMEM;
@@ -34,10 +34,10 @@ index 3e8cdf1..5648ebb 100644
  
  	ret = copy_to_user(user_buf, buf, count);
  	kfree(buf);
-diff --git a/wil6210/main.c b/wil6210/main.c
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
 index 439d27c..3208679 100644
---- a/wil6210/main.c
-+++ b/wil6210/main.c
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
 @@ -141,14 +141,6 @@ void wil_memcpy_fromio_32(void *dst, const volatile void __iomem *src,
  	}
  }
@@ -69,10 +69,10 @@ index 439d27c..3208679 100644
  static void wil_disconnect_cid(struct wil6210_priv *wil, int cid,
  			       u16 reason_code, bool from_event)
  __acquires(&sta->tid_rx_lock) __releases(&sta->tid_rx_lock)
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index 6e0a719..8d905e2 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -802,12 +802,6 @@ void wil_memcpy_fromio_32(void *dst, const volatile void __iomem *src,
  			  size_t count);
  void wil_memcpy_toio_32(volatile void __iomem *dst, const void *src,

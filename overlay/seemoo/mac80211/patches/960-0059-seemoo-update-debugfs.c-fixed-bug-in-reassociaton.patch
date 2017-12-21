@@ -8,10 +8,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/debugfs.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index 8348f9c..2258371 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -59,7 +59,7 @@ u8 my_console_uc[MY_CONSOLE_MAX_LEN];
  u32 my_console_fw_len;
  u32 my_console_uc_len;

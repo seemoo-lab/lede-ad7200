@@ -9,10 +9,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wil6210.h | 10 +++++-----
  2 files changed, 6 insertions(+), 6 deletions(-)
 
-diff --git a/wil6210/Makefile b/wil6210/Makefile
+diff --git a/drivers/net/wireless/ath/wil6210/Makefile b/drivers/net/wireless/ath/wil6210/Makefile
 index 8a19dbc..76267d4 100644
---- a/wil6210/Makefile
-+++ b/wil6210/Makefile
+--- a/drivers/net/wireless/ath/wil6210/Makefile
++++ b/drivers/net/wireless/ath/wil6210/Makefile
 @@ -4,7 +4,7 @@ wil6210-y := main.o
  wil6210-y += netdev.o
  wil6210-y += cfg80211.o
@@ -22,10 +22,10 @@ index 8a19dbc..76267d4 100644
  wil6210-y += wmi.o
  wil6210-y += interrupt.o
  wil6210-y += txrx.o
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index 8b17d64..01295f0 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -951,13 +951,13 @@ int wil_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
  			 struct cfg80211_mgmt_tx_params *params,
  			 u64 *cookie);

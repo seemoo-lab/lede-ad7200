@@ -1,7 +1,7 @@
-From a0f83c758ceb815f429dd24104b4d14b7c391dfb Mon Sep 17 00:00:00 2001
+From 868ebe25e298583e21ebea927672025c11959682 Mon Sep 17 00:00:00 2001
 From: Lior David <qca_liord@qca.qualcomm.com>
 Date: Wed, 5 Apr 2017 14:58:06 +0300
-Subject: [PATCH 12/59] wil6210: support 8KB RX buffers
+Subject: [PATCH 12/57] wil6210: support 8KB RX buffers
 
 The 11ad spec requires 11ad devices to be able to receive 8KB
 packets over the air. Currently this is only possible by
@@ -28,10 +28,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wmi.c        |  3 ++-
  4 files changed, 36 insertions(+), 5 deletions(-)
 
-diff --git a/wil6210/rx_reorder.c b/wil6210/rx_reorder.c
+diff --git a/drivers/net/wireless/ath/wil6210/rx_reorder.c b/drivers/net/wireless/ath/wil6210/rx_reorder.c
 index 7404b6f..a43cffc 100644
---- a/wil6210/rx_reorder.c
-+++ b/wil6210/rx_reorder.c
+--- a/drivers/net/wireless/ath/wil6210/rx_reorder.c
++++ b/drivers/net/wireless/ath/wil6210/rx_reorder.c
 @@ -343,8 +343,16 @@ __acquires(&sta->tid_rx_lock) __releases(&sta->tid_rx_lock)
  		wil_err(wil, "BACK requested unsupported ba_policy == 1\n");
  		status = WLAN_STATUS_INVALID_QOS_PARAM;
@@ -51,10 +51,10 @@ index 7404b6f..a43cffc 100644
  
  	rc = wmi_addba_rx_resp(wil, cid, tid, dialog_token, status,
  			       agg_amsdu, agg_wsize, agg_timeout);
-diff --git a/wil6210/txrx.c b/wil6210/txrx.c
+diff --git a/drivers/net/wireless/ath/wil6210/txrx.c b/drivers/net/wireless/ath/wil6210/txrx.c
 index 072182e..400895a 100644
---- a/wil6210/txrx.c
-+++ b/wil6210/txrx.c
+--- a/drivers/net/wireless/ath/wil6210/txrx.c
++++ b/drivers/net/wireless/ath/wil6210/txrx.c
 @@ -37,6 +37,10 @@ bool rx_align_2;
  module_param(rx_align_2, bool, 0444);
  MODULE_PARM_DESC(rx_align_2, " align Rx buffers on 4*n+2, default - no");
@@ -114,10 +114,10 @@ index 072182e..400895a 100644
  	vring->size = size;
  	rc = wil_vring_alloc(wil, vring);
  	if (rc)
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index 5f76e60..6e0a719 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -32,6 +32,7 @@ extern unsigned short rx_ring_overflow_thrsh;
  extern int agg_wsize;
  extern u32 vring_idle_trsh;
@@ -134,10 +134,10 @@ index 5f76e60..6e0a719 100644
  	struct vring vring_tx[WIL6210_MAX_TX_RINGS];
  	struct vring_tx_data vring_tx_data[WIL6210_MAX_TX_RINGS];
  	u8 vring2cid_tid[WIL6210_MAX_TX_RINGS][2]; /* [0] - CID, [1] - TID */
-diff --git a/wil6210/wmi.c b/wil6210/wmi.c
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.c b/drivers/net/wireless/ath/wil6210/wmi.c
 index 9255c47..e6c249d 100644
---- a/wil6210/wmi.c
-+++ b/wil6210/wmi.c
+--- a/drivers/net/wireless/ath/wil6210/wmi.c
++++ b/drivers/net/wireless/ath/wil6210/wmi.c
 @@ -1398,7 +1398,8 @@ int wmi_rx_chain_add(struct wil6210_priv *wil, struct vring *vring)
  	struct wmi_cfg_rx_chain_cmd cmd = {
  		.action = WMI_RX_CHAIN_ADD,

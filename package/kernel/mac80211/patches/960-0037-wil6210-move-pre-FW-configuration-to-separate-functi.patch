@@ -1,7 +1,7 @@
-From 95b5171f6ad534f7db5fa59b0c69eb80b0334cfc Mon Sep 17 00:00:00 2001
+From 67442330854963b1886341cdfd87897c3fa77b0a Mon Sep 17 00:00:00 2001
 From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
 Date: Mon, 28 Aug 2017 22:18:44 +0300
-Subject: [PATCH 37/59] wil6210: move pre-FW configuration to separate function
+Subject: [PATCH 37/57] wil6210: move pre-FW configuration to separate function
 
 Re-arrange the code to have dedicated function for device configuration
 which takes place before FW starts running.
@@ -13,10 +13,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/main.c | 40 ++++++++++++++++++++++------------------
  1 file changed, 22 insertions(+), 18 deletions(-)
 
-diff --git a/wil6210/main.c b/wil6210/main.c
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
 index e2ea490..927e332 100644
---- a/wil6210/main.c
-+++ b/wil6210/main.c
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
 @@ -930,6 +930,27 @@ int wil_ps_update(struct wil6210_priv *wil, enum wmi_ps_profile_type ps_profile)
  	return rc;
  }

@@ -1,7 +1,7 @@
-From 86a4a1d768e97523da6b39ba09af63422e92d801 Mon Sep 17 00:00:00 2001
+From 3cce16c2f2e4b2ff3c2dd7281627901c0d5406d8 Mon Sep 17 00:00:00 2001
 From: Lior David <qca_liord@qca.qualcomm.com>
 Date: Mon, 15 May 2017 14:45:55 +0300
-Subject: [PATCH 21/59] wil6210: low level RF sector API
+Subject: [PATCH 21/57] wil6210: low level RF sector API
 
 Added vendor commands for low level control over
 RF sectors. It allows user space a fine-grained control
@@ -19,10 +19,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/cfg80211.c | 573 +++++++++++++++++++++++++++++++++++++++++++++++++++++
  1 file changed, 573 insertions(+)
 
-diff --git a/wil6210/cfg80211.c b/wil6210/cfg80211.c
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
 index 4238e04..3f8b9c7 100644
---- a/wil6210/cfg80211.c
-+++ b/wil6210/cfg80211.c
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
 @@ -15,6 +15,7 @@
   */
  

@@ -1,7 +1,7 @@
-From d6e30e34f75904787d245de8e46d27254bad4ab0 Mon Sep 17 00:00:00 2001
+From 417ace56751dff797d3f12ad41d3584c780f071e Mon Sep 17 00:00:00 2001
 From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
 Date: Tue, 21 Feb 2017 16:32:07 +0200
-Subject: [PATCH 08/59] wil6210: correctly report locally generated disconnect
+Subject: [PATCH 08/57] wil6210: correctly report locally generated disconnect
  in STA mode
 
 Driver always invoke cfg80211_disconnected() with locally_generated as
@@ -20,10 +20,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wmi.c      | 1 +
  4 files changed, 7 insertions(+), 1 deletion(-)
 
-diff --git a/wil6210/cfg80211.c b/wil6210/cfg80211.c
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
 index a530a7b..9098aba 100644
---- a/wil6210/cfg80211.c
-+++ b/wil6210/cfg80211.c
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
 @@ -709,6 +709,7 @@ static int wil_cfg80211_disconnect(struct wiphy *wiphy,
  		return 0;
  	}
@@ -32,10 +32,10 @@ index a530a7b..9098aba 100644
  	rc = wmi_call(wil, WMI_DISCONNECT_CMDID, NULL, 0,
  		      WMI_DISCONNECT_EVENTID, NULL, 0,
  		      WIL6210_DISCONNECT_TO_MS);
-diff --git a/wil6210/main.c b/wil6210/main.c
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
 index 79aeb2b..3206aea 100644
---- a/wil6210/main.c
-+++ b/wil6210/main.c
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
 @@ -279,7 +279,10 @@ static void _wil6210_disconnect(struct wil6210_priv *wil, const u8 *bssid,
  		if (test_bit(wil_status_fwconnected, wil->status)) {
  			clear_bit(wil_status_fwconnected, wil->status);
@@ -48,10 +48,10 @@ index 79aeb2b..3206aea 100644
  		} else if (test_bit(wil_status_fwconnecting, wil->status)) {
  			cfg80211_connect_result(ndev, bssid, NULL, 0, NULL, 0,
  						WLAN_STATUS_UNSPECIFIED_FAILURE,
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index 9d9db60..46ce8a3 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -614,6 +614,7 @@ struct wil6210_priv {
  	int sinfo_gen;
  	u32 ap_isolate; /* no intra-BSS communication */
@@ -60,10 +60,10 @@ index 9d9db60..46ce8a3 100644
  	/* interrupt moderation */
  	u32 tx_max_burst_duration;
  	u32 tx_interframe_timeout;
-diff --git a/wil6210/wmi.c b/wil6210/wmi.c
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.c b/drivers/net/wireless/ath/wil6210/wmi.c
 index 02ccdae..9255c47 100644
---- a/wil6210/wmi.c
-+++ b/wil6210/wmi.c
+--- a/drivers/net/wireless/ath/wil6210/wmi.c
++++ b/drivers/net/wireless/ath/wil6210/wmi.c
 @@ -1497,6 +1497,7 @@ int wmi_disconnect_sta(struct wil6210_priv *wil, const u8 *mac,
  
  	wil_dbg_wmi(wil, "disconnect_sta: (%pM, reason %d)\n", mac, reason);

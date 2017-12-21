@@ -1,7 +1,7 @@
-From 2f75fca6b6f321873c3e61a1b87c1ed5ee98c6cd Mon Sep 17 00:00:00 2001
+From cac1bb005b55b263f074f50c9d5e05dab7dc74bd Mon Sep 17 00:00:00 2001
 From: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
 Date: Mon, 28 Aug 2017 22:18:43 +0300
-Subject: [PATCH 36/59] wil6210: align to latest auto generated wmi.h
+Subject: [PATCH 36/57] wil6210: align to latest auto generated wmi.h
 
 Align to latest version of the auto generated wmi file
 describing the interface with FW.
@@ -13,10 +13,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wmi.h | 714 ++++++++++++++++++++++++++++++++++++++--------------------
  1 file changed, 475 insertions(+), 239 deletions(-)
 
-diff --git a/wil6210/wmi.h b/wil6210/wmi.h
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.h b/drivers/net/wireless/ath/wil6210/wmi.h
 index 1b426d7..5263ee7 100644
---- a/wil6210/wmi.h
-+++ b/wil6210/wmi.h
+--- a/drivers/net/wireless/ath/wil6210/wmi.h
++++ b/drivers/net/wireless/ath/wil6210/wmi.h
 @@ -36,6 +36,11 @@
  #define WMI_PROX_RANGE_NUM		(3)
  #define WMI_MAX_LOSS_DMG_BEACONS	(20)

@@ -8,10 +8,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/debugfs.c | 30 ++----------------------------
  1 file changed, 2 insertions(+), 28 deletions(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index 531f3ec..aab7932 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -24,6 +24,8 @@
  #include "wmi.h"
  #include "txrx.h"

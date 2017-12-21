@@ -1,7 +1,7 @@
-From 95f33e28ed506b6f3ddeb528164460362d7aa88d Mon Sep 17 00:00:00 2001
+From 91a8b0c70378005e53804a2a6830f8fdb3ce4e1a Mon Sep 17 00:00:00 2001
 From: Gidon Studinski <qca_gidons@qca.qualcomm.com>
 Date: Thu, 3 Aug 2017 22:08:21 +0300
-Subject: [PATCH 33/59] wil6210: move vring_idle_trsh definition to
+Subject: [PATCH 33/57] wil6210: move vring_idle_trsh definition to
  wil6210_priv
 
 vring_idle_trsh is used in the operational driver, hence
@@ -17,10 +17,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wil6210.h | 2 +-
  4 files changed, 6 insertions(+), 8 deletions(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index cd5f83b..ec4cd14 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -20,7 +20,6 @@
  #include <linux/pci.h>
  #include <linux/rtnetlink.h>
@@ -54,10 +54,10 @@ index cd5f83b..ec4cd14 100644
  	{"led_polarity", 0644, (ulong)&led_polarity, doff_u8},
  	{},
  };
-diff --git a/wil6210/main.c b/wil6210/main.c
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
 index b89d017..e2ea490 100644
---- a/wil6210/main.c
-+++ b/wil6210/main.c
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
 @@ -581,6 +581,7 @@ int wil_priv_init(struct wil6210_priv *wil)
  			      WMI_WAKEUP_TRIGGER_BCAST;
  	memset(&wil->suspend_stats, 0, sizeof(wil->suspend_stats));
@@ -66,10 +66,10 @@ index b89d017..e2ea490 100644
  
  	return 0;
  
-diff --git a/wil6210/txrx.c b/wil6210/txrx.c
+diff --git a/drivers/net/wireless/ath/wil6210/txrx.c b/drivers/net/wireless/ath/wil6210/txrx.c
 index 75aed39..1f389f0 100644
---- a/wil6210/txrx.c
-+++ b/wil6210/txrx.c
+--- a/drivers/net/wireless/ath/wil6210/txrx.c
++++ b/drivers/net/wireless/ath/wil6210/txrx.c
 @@ -1649,7 +1649,7 @@ static int __wil_tx_vring_tso(struct wil6210_priv *wil, struct vring *vring,
  
  	/* performance monitoring */
@@ -97,10 +97,10 @@ index 75aed39..1f389f0 100644
  			     used_new, used_before_complete)) {
  		wil_dbg_txrx(wil, "Ring[%2d] idle %d -> %d\n",
  			     ringid, used_before_complete, used_new);
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index addb7cd..d1a11ba 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -30,7 +30,6 @@ extern bool no_fw_recovery;
  extern unsigned int mtu_max;
  extern unsigned short rx_ring_overflow_thrsh;

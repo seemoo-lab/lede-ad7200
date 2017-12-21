@@ -8,10 +8,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/debugfs.c | 55 +++++++++++++++++--------------------------------------
  1 file changed, 17 insertions(+), 38 deletions(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index aab7932..8348f9c 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -1845,27 +1845,15 @@ sweep_dump_show(struct seq_file *s, void *data) {
  
  	if(my_glob_wil != NULL) {

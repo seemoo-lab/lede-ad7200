@@ -10,10 +10,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wmi.h     |  21 ++--
  3 files changed, 298 insertions(+), 12 deletions(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index 6639882..3d7d544 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -46,6 +46,52 @@ struct dbg_off {
  	enum dbg_off_type type;
  };
@@ -327,10 +327,10 @@ index 6639882..3d7d544 100644
  	if (IS_ERR_OR_NULL(dbg))
  		return -ENODEV;
  
-diff --git a/wil6210/fw_inc.c b/wil6210/fw_inc.c
+diff --git a/drivers/net/wireless/ath/wil6210/fw_inc.c b/drivers/net/wireless/ath/wil6210/fw_inc.c
 index 77d1902..3e9cc95 100644
---- a/wil6210/fw_inc.c
-+++ b/wil6210/fw_inc.c
+--- a/drivers/net/wireless/ath/wil6210/fw_inc.c
++++ b/drivers/net/wireless/ath/wil6210/fw_inc.c
 @@ -129,7 +129,7 @@ static int fw_ignore_section(struct wil6210_priv *wil, const void *data,
  
  static int
@@ -349,10 +349,10 @@ index 77d1902..3e9cc95 100644
  	{wil_fw_type_data, fw_handle_data, fw_ignore_section},
  	{wil_fw_type_fill, fw_handle_fill, fw_ignore_section},
  	/* wil_fw_type_action */
-diff --git a/wil6210/wmi.h b/wil6210/wmi.h
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.h b/drivers/net/wireless/ath/wil6210/wmi.h
 index d9e220a..2d8cc0a 100644
---- a/wil6210/wmi.h
-+++ b/wil6210/wmi.h
+--- a/drivers/net/wireless/ath/wil6210/wmi.h
++++ b/drivers/net/wireless/ath/wil6210/wmi.h
 @@ -57,18 +57,19 @@ enum wmi_mid {
   * the host
   */

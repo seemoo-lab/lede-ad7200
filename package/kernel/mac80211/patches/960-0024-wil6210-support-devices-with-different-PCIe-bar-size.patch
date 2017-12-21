@@ -1,7 +1,7 @@
-From 0872fc01a32608ac2776dce309c0292e8e31647c Mon Sep 17 00:00:00 2001
+From 9d441135c844a6aaa19fee0c1ed9681ce248bc36 Mon Sep 17 00:00:00 2001
 From: Maya Erez <qca_merez@qca.qualcomm.com>
 Date: Mon, 15 May 2017 14:45:59 +0300
-Subject: [PATCH 24/59] wil6210: support devices with different PCIe bar size
+Subject: [PATCH 24/57] wil6210: support devices with different PCIe bar size
 
 wil6210 devices can have different PCIe bar size, hence get the
 bar size from PCIe device instead of using a constant bar size.
@@ -15,10 +15,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wmi.c      |  4 ++--
  4 files changed, 17 insertions(+), 12 deletions(-)
 
-diff --git a/wil6210/ioctl.c b/wil6210/ioctl.c
+diff --git a/drivers/net/wireless/ath/wil6210/ioctl.c b/drivers/net/wireless/ath/wil6210/ioctl.c
 index 6303800..1c49ad8 100644
---- a/wil6210/ioctl.c
-+++ b/wil6210/ioctl.c
+--- a/drivers/net/wireless/ath/wil6210/ioctl.c
++++ b/drivers/net/wireless/ath/wil6210/ioctl.c
 @@ -1,5 +1,5 @@
  /*
 - * Copyright (c) 2014 Qualcomm Atheros, Inc.
@@ -35,10 +35,10 @@ index 6303800..1c49ad8 100644
  		wil_err(wil, "Requested block does not fit into memory: "
  			"off = 0x%08x size = 0x%08x\n", off, size);
  		return NULL;
-diff --git a/wil6210/pcie_bus.c b/wil6210/pcie_bus.c
+diff --git a/drivers/net/wireless/ath/wil6210/pcie_bus.c b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 index 2b1b1bd..3356d5f 100644
---- a/wil6210/pcie_bus.c
-+++ b/wil6210/pcie_bus.c
+--- a/drivers/net/wireless/ath/wil6210/pcie_bus.c
++++ b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 @@ -200,16 +200,18 @@ static int wil_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
  		.ramdump = wil_platform_rop_ramdump,
  		.fw_recovery = wil_platform_rop_fw_recovery,
@@ -73,10 +73,10 @@ index 2b1b1bd..3356d5f 100644
  	/* rollback to if_free */
  
  	wil->platform_handle =
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index a1dc381..ad78acb 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -58,7 +58,8 @@ static inline u32 WIL_GET_BITS(u32 x, int b0, int b1)
  	return (x >> b0) & ((1 << (b1 - b0 + 1)) - 1);
  }
@@ -95,10 +95,10 @@ index a1dc381..ad78acb 100644
  	struct wireless_dev *wdev;
  	void __iomem *csr;
  	DECLARE_BITMAP(status, wil_status_last);
-diff --git a/wil6210/wmi.c b/wil6210/wmi.c
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.c b/drivers/net/wireless/ath/wil6210/wmi.c
 index 814c356..93902cb 100644
---- a/wil6210/wmi.c
-+++ b/wil6210/wmi.c
+--- a/drivers/net/wireless/ath/wil6210/wmi.c
++++ b/drivers/net/wireless/ath/wil6210/wmi.c
 @@ -157,7 +157,7 @@ void __iomem *wmi_buffer(struct wil6210_priv *wil, __le32 ptr_)
  		return NULL;
  

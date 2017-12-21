@@ -9,11 +9,11 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  1 file changed, 77 insertions(+)
  create mode 100644 wil6210/sweep_info.h
 
-diff --git a/wil6210/sweep_info.h b/wil6210/sweep_info.h
+diff --git a/drivers/net/wireless/ath/wil6210/sweep_info.h b/drivers/net/wireless/ath/wil6210/sweep_info.h
 new file mode 100644
 index 0000000..73d1c9f
 --- /dev/null
-+++ b/wil6210/sweep_info.h
++++ b/drivers/net/wireless/ath/wil6210/sweep_info.h
 @@ -0,0 +1,77 @@
 +#ifndef SWEEP_INFO_H_
 +#define SWEEP_INFO_H_

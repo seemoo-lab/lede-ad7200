@@ -1,7 +1,7 @@
-From 87ba685a4c825baa0449e0ab863b738a496cbcea Mon Sep 17 00:00:00 2001
+From b843f41b6395b673e22e43b9bcb4f61271315ec6 Mon Sep 17 00:00:00 2001
 From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
 Date: Wed, 5 Apr 2017 14:58:11 +0300
-Subject: [PATCH 17/59] wil6210: fix memory access violation in
+Subject: [PATCH 17/57] wil6210: fix memory access violation in
  wil_memcpy_from/toio_32
 
 In case count is not multiple of 4, there is a read access in
@@ -18,10 +18,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/main.c | 20 +++++++++++++++++---
  1 file changed, 17 insertions(+), 3 deletions(-)
 
-diff --git a/wil6210/main.c b/wil6210/main.c
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
 index 9aa81ce..439d27c 100644
---- a/wil6210/main.c
-+++ b/wil6210/main.c
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
 @@ -130,9 +130,15 @@ void wil_memcpy_fromio_32(void *dst, const volatile void __iomem *src,
  	u32 *d = dst;
  	const volatile u32 __iomem *s = src;

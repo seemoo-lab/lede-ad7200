@@ -1,7 +1,7 @@
-From cd883cd799390da4f5190d610b7600c67e8e618f Mon Sep 17 00:00:00 2001
+From 35f6e3b730966ba6a5a9317745f3b2f48b4c32b3 Mon Sep 17 00:00:00 2001
 From: Lior David <qca_liord@qca.qualcomm.com>
 Date: Tue, 21 Feb 2017 16:32:01 +0200
-Subject: [PATCH 02/59] wil6210: bus_request platform operation refinement
+Subject: [PATCH 02/57] wil6210: bus_request platform operation refinement
 
 The driver uses the bus_request platform operation to
 request resources from the platform for a specific bandwidth.
@@ -23,10 +23,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wmi.c      |  1 +
  4 files changed, 17 insertions(+), 7 deletions(-)
 
-diff --git a/wil6210/cfg80211.c b/wil6210/cfg80211.c
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
 index 0251b53..07dff63 100644
---- a/wil6210/cfg80211.c
-+++ b/wil6210/cfg80211.c
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
 @@ -679,6 +679,7 @@ static int wil_cfg80211_connect(struct wiphy *wiphy,
  	rc = wmi_send(wil, WMI_CONNECT_CMDID, &conn, sizeof(conn));
  	if (rc == 0) {
@@ -59,10 +59,10 @@ index 0251b53..07dff63 100644
  	wil_set_recovery_state(wil, fw_recovery_idle);
  
  	mutex_lock(&wil->mutex);
-diff --git a/wil6210/main.c b/wil6210/main.c
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
 index efb1f59..21b7fac 100644
---- a/wil6210/main.c
-+++ b/wil6210/main.c
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
 @@ -274,6 +274,7 @@ static void _wil6210_disconnect(struct wil6210_priv *wil, const u8 *bssid,
  		wil_bcast_fini(wil);
  		wil_update_net_queues_bh(wil, NULL, true);
@@ -105,10 +105,10 @@ index efb1f59..21b7fac 100644
  
  	wil_disable_irq(wil);
  	if (test_and_clear_bit(wil_status_napi_en, wil->status)) {
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index 085a2db..48127b9 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -1,5 +1,5 @@
  /*
 - * Copyright (c) 2012-2016 Qualcomm Atheros, Inc.
@@ -133,10 +133,10 @@ index 085a2db..48127b9 100644
  void wil6210_disconnect(struct wil6210_priv *wil, const u8 *bssid,
  			u16 reason_code, bool from_event);
  void wil_probe_client_flush(struct wil6210_priv *wil);
-diff --git a/wil6210/wmi.c b/wil6210/wmi.c
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.c b/drivers/net/wireless/ath/wil6210/wmi.c
 index 1f22c19..a7a4ac1 100644
---- a/wil6210/wmi.c
-+++ b/wil6210/wmi.c
+--- a/drivers/net/wireless/ath/wil6210/wmi.c
++++ b/drivers/net/wireless/ath/wil6210/wmi.c
 @@ -565,6 +565,7 @@ static void wmi_evt_connect(struct wil6210_priv *wil, int id, void *d, int len)
  	    (wdev->iftype == NL80211_IFTYPE_P2P_CLIENT)) {
  		if (rc) {

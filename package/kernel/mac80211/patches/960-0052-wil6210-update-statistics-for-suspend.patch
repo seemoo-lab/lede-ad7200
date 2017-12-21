@@ -1,7 +1,7 @@
-From 0f8eaefea303f13ba159074c03e1324688821753 Mon Sep 17 00:00:00 2001
+From 7281ebb3a4b0ed6a88d3341f37431292ca3d5fa4 Mon Sep 17 00:00:00 2001
 From: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
 Date: Tue, 14 Nov 2017 15:25:44 +0200
-Subject: [PATCH 52/59] wil6210: update statistics for suspend
+Subject: [PATCH 52/57] wil6210: update statistics for suspend
 
 Currently the statistics show how many successful/failed
 suspend/resume operations the system had.
@@ -18,10 +18,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wil6210.h  | 11 ++++++++---
  4 files changed, 59 insertions(+), 27 deletions(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index 20d8384..6639882 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -1686,24 +1686,41 @@ static ssize_t wil_read_suspend_stats(struct file *file,
  				      size_t count, loff_t *ppos)
  {
@@ -79,10 +79,10 @@ index 20d8384..6639882 100644
  }
  
  static const struct file_operations fops_suspend_stats = {
-diff --git a/wil6210/pcie_bus.c b/wil6210/pcie_bus.c
+diff --git a/drivers/net/wireless/ath/wil6210/pcie_bus.c b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 index 9307a03..981e201 100644
---- a/wil6210/pcie_bus.c
-+++ b/wil6210/pcie_bus.c
+--- a/drivers/net/wireless/ath/wil6210/pcie_bus.c
++++ b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 @@ -375,14 +375,16 @@ static int wil6210_suspend(struct device *dev, bool is_runtime)
  
  	rc = wil_suspend(wil, is_runtime, keep_radio_on);
@@ -124,10 +124,10 @@ index 9307a03..981e201 100644
  	}
  
  	return rc;
-diff --git a/wil6210/pm.c b/wil6210/pm.c
+diff --git a/drivers/net/wireless/ath/wil6210/pm.c b/drivers/net/wireless/ath/wil6210/pm.c
 index 9fba237..056b180 100644
---- a/wil6210/pm.c
-+++ b/wil6210/pm.c
+--- a/drivers/net/wireless/ath/wil6210/pm.c
++++ b/drivers/net/wireless/ath/wil6210/pm.c
 @@ -183,7 +183,7 @@ static int wil_suspend_keep_radio_on(struct wil6210_priv *wil)
  					break;
  				wil_err(wil,
@@ -171,10 +171,10 @@ index 9fba237..056b180 100644
  			goto out;
  		}
  	}
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index af82a54..8b17d64 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -82,12 +82,17 @@ static inline u32 WIL_GET_BITS(u32 x, int b0, int b1)
   */
  #define WIL_MAX_MPDU_OVERHEAD	(62)

@@ -1,7 +1,7 @@
-From 515b5a11f854bdf984ed4b4be822ec97afb26ed4 Mon Sep 17 00:00:00 2001
+From f2951b25a00f30c3bf4ce11d39957d2b474bf1c7 Mon Sep 17 00:00:00 2001
 From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
 Date: Thu, 3 Aug 2017 22:08:20 +0300
-Subject: [PATCH 32/59] wil6210: store FW RF calibration result
+Subject: [PATCH 32/57] wil6210: store FW RF calibration result
 
 Store initial FW RF calibration result in driver. Set this calibration
 result back to FW after each FW reset in order to avoid future calibration
@@ -17,10 +17,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wmi.h     | 2 ++
  4 files changed, 19 insertions(+)
 
-diff --git a/wil6210/main.c b/wil6210/main.c
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
 index b1e2814..b89d017 100644
---- a/wil6210/main.c
-+++ b/wil6210/main.c
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
 @@ -1034,6 +1034,12 @@ int wil_reset(struct wil6210_priv *wil, bool load_fw)
  		wil_s(wil, RGF_CAF_ICR + offsetof(struct RGF_ICR, ICR), 0);
  		wil_w(wil, RGF_CAF_ICR + offsetof(struct RGF_ICR, IMV), ~0);
@@ -34,10 +34,10 @@ index b1e2814..b89d017 100644
  		wil_release_cpu(wil);
  	}
  
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index 517a3f4..addb7cd 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -171,6 +171,10 @@ struct RGF_ICR {
  #define RGF_USER_USER_SCRATCH_PAD	(0x8802bc)
  #define RGF_USER_BL			(0x880A3C) /* Boot Loader */
@@ -58,10 +58,10 @@ index 517a3f4..addb7cd 100644
  #ifdef CONFIG_PM
  #ifdef CONFIG_PM_SLEEP
  	struct notifier_block pm_notify;
-diff --git a/wil6210/wmi.c b/wil6210/wmi.c
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.c b/drivers/net/wireless/ath/wil6210/wmi.c
 index b0f2181..06c5180 100644
---- a/wil6210/wmi.c
-+++ b/wil6210/wmi.c
+--- a/drivers/net/wireless/ath/wil6210/wmi.c
++++ b/drivers/net/wireless/ath/wil6210/wmi.c
 @@ -344,6 +344,11 @@ static void wmi_evt_ready(struct wil6210_priv *wil, int id, void *d, int len)
  	strlcpy(wdev->wiphy->fw_version, wil->fw_version,
  		sizeof(wdev->wiphy->fw_version));
@@ -74,10 +74,10 @@ index b0f2181..06c5180 100644
  	wil_set_recovery_state(wil, fw_recovery_idle);
  	set_bit(wil_status_fwready, wil->status);
  	/* let the reset sequence continue */
-diff --git a/wil6210/wmi.h b/wil6210/wmi.h
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.h b/drivers/net/wireless/ath/wil6210/wmi.h
 index 4e31c2f..1b426d7 100644
---- a/wil6210/wmi.h
-+++ b/wil6210/wmi.h
+--- a/drivers/net/wireless/ath/wil6210/wmi.h
++++ b/drivers/net/wireless/ath/wil6210/wmi.h
 @@ -1300,6 +1300,8 @@ struct wmi_ready_event {
  	/* enum wmi_phy_capability */
  	u8 phy_capability;

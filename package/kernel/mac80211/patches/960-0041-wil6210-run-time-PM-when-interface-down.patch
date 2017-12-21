@@ -1,7 +1,7 @@
-From 2ce35fac6f84440c544cbf24279ac6b1e97d8810 Mon Sep 17 00:00:00 2001
+From 84bc9395c7a85cb9e06807290e9684c112c23359 Mon Sep 17 00:00:00 2001
 From: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
 Date: Tue, 14 Nov 2017 15:25:33 +0200
-Subject: [PATCH 41/59] wil6210: run-time PM when interface down
+Subject: [PATCH 41/57] wil6210: run-time PM when interface down
 
 Allow run-time suspend when interface is down, keep card alive when
 interface is up.
@@ -11,20 +11,18 @@ Signed-off-by: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
 Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
 Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
 ---
- wil6210/debugfs.c    | 96 +++++++++++++++++++++++++++++++++++++++++++++++-----
- wil6210/ethtool.c    | 15 ++++++++
- wil6210/netdev.c     | 18 ++++++++--
- wil6210/netdev.c.rej | 33 ------------------
- wil6210/pcie_bus.c   | 44 +++++++++++++++++++-----
- wil6210/pm.c         | 66 ++++++++++++++++++++++++++++++++++++
- wil6210/wil6210.h    | 18 ++++++++--
- 7 files changed, 237 insertions(+), 53 deletions(-)
- delete mode 100644 wil6210/netdev.c.rej
+ wil6210/debugfs.c  | 96 +++++++++++++++++++++++++++++++++++++++++++++++++-----
+ wil6210/ethtool.c  | 15 +++++++++
+ wil6210/netdev.c   | 18 ++++++++--
+ wil6210/pcie_bus.c | 44 ++++++++++++++++++++-----
+ wil6210/pm.c       | 66 +++++++++++++++++++++++++++++++++++++
+ wil6210/wil6210.h  | 18 ++++++++--
+ 6 files changed, 237 insertions(+), 20 deletions(-)
 
-diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
 index ec4cd14..a077866 100644
---- a/wil6210/debugfs.c
-+++ b/wil6210/debugfs.c
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
 @@ -242,12 +242,19 @@ static void wil_print_ring(struct seq_file *s, const char *prefix,
  static int wil_mbox_debugfs_show(struct seq_file *s, void *data)
  {
@@ -219,10 +217,10 @@ index ec4cd14..a077866 100644
  	/* free pmc memory without sending command to fw, as it will
  	 * be reset on the way down anyway
  	 */
-diff --git a/wil6210/ethtool.c b/wil6210/ethtool.c
+diff --git a/drivers/net/wireless/ath/wil6210/ethtool.c b/drivers/net/wireless/ath/wil6210/ethtool.c
 index adcfef4..66200f6 100644
---- a/wil6210/ethtool.c
-+++ b/wil6210/ethtool.c
+--- a/drivers/net/wireless/ath/wil6210/ethtool.c
++++ b/drivers/net/wireless/ath/wil6210/ethtool.c
 @@ -47,9 +47,14 @@ static int wil_ethtoolops_get_coalesce(struct net_device *ndev,
  	struct wil6210_priv *wil = ndev_to_wil(ndev);
  	u32 tx_itr_en, tx_itr_val = 0;
@@ -271,10 +269,10 @@ index adcfef4..66200f6 100644
  	return 0;
  
  out_bad:
-diff --git a/wil6210/netdev.c b/wil6210/netdev.c
+diff --git a/drivers/net/wireless/ath/wil6210/netdev.c b/drivers/net/wireless/ath/wil6210/netdev.c
 index 6f2c7c8..6ad70d5 100644
---- a/wil6210/netdev.c
-+++ b/wil6210/netdev.c
+--- a/drivers/net/wireless/ath/wil6210/netdev.c
++++ b/drivers/net/wireless/ath/wil6210/netdev.c
 @@ -21,6 +21,7 @@
  static int wil_open(struct net_device *ndev)
  {
@@ -315,49 +313,10 @@ index 6f2c7c8..6ad70d5 100644
  }
  
  static int wil_change_mtu(struct net_device *ndev, int new_mtu)
-diff --git a/wil6210/netdev.c.rej b/wil6210/netdev.c.rej
-deleted file mode 100644
-index 18e7f78..0000000
---- a/wil6210/netdev.c.rej
-+++ /dev/null
-@@ -1,33 +0,0 @@
--diff a/netdev.c b/netdev.c	(rejected hunks)
--@@ -30,16 +31,29 @@ static int wil_open(struct net_device *ndev)
-- 		return -EINVAL;
-- 	}
-- 
---	return wil_up(wil);
--+	rc = wil_pm_runtime_get(wil);
--+	if (rc < 0)
--+		return rc;
--+
--+	rc = wil_up(wil);
--+	if (rc)
--+		wil_pm_runtime_put(wil);
--+
--+	return rc;
-- }
-- 
-- static int wil_stop(struct net_device *ndev)
-- {
-- 	struct wil6210_priv *wil = ndev_to_wil(ndev);
--+	int rc;
-- 
-- 	wil_dbg_misc(wil, "stop\n");
-- 
---	return wil_down(wil);
--+	rc = wil_down(wil);
--+	if (!rc)
--+		wil_pm_runtime_put(wil);
--+
--+	return rc;
-- }
-- 
-- static const struct net_device_ops wil_netdev_ops = {
-diff --git a/wil6210/pcie_bus.c b/wil6210/pcie_bus.c
+diff --git a/drivers/net/wireless/ath/wil6210/pcie_bus.c b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 index 2a801e2..f5d4b4a 100644
---- a/wil6210/pcie_bus.c
-+++ b/wil6210/pcie_bus.c
+--- a/drivers/net/wireless/ath/wil6210/pcie_bus.c
++++ b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 @@ -21,6 +21,7 @@
  #include <linux/suspend.h>
  #include "wil6210.h"
@@ -465,10 +424,10 @@ index 2a801e2..f5d4b4a 100644
  };
  
  static struct pci_driver wil6210_driver = {
-diff --git a/wil6210/pm.c b/wil6210/pm.c
+diff --git a/drivers/net/wireless/ath/wil6210/pm.c b/drivers/net/wireless/ath/wil6210/pm.c
 index 8f5d1b4..43699ac 100644
---- a/wil6210/pm.c
-+++ b/wil6210/pm.c
+--- a/drivers/net/wireless/ath/wil6210/pm.c
++++ b/drivers/net/wireless/ath/wil6210/pm.c
 @@ -16,15 +16,30 @@
  
  #include "wil6210.h"
@@ -569,10 +528,10 @@ index 8f5d1b4..43699ac 100644
 +	pm_runtime_mark_last_busy(dev);
 +	pm_runtime_put_autosuspend(dev);
 +}
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index c1286ba..7c12ce1 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -616,6 +616,16 @@ struct blink_on_off_time {
  	u32 off_ms;
  };

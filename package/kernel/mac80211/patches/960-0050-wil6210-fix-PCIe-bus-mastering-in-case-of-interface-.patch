@@ -1,7 +1,7 @@
-From c813e8dc549802c4adc3df775bca1bad45e19ba6 Mon Sep 17 00:00:00 2001
+From 5c29b923892132df2c9377b78a9c3449725ea5c7 Mon Sep 17 00:00:00 2001
 From: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
 Date: Tue, 14 Nov 2017 15:25:42 +0200
-Subject: [PATCH 50/59] wil6210: fix PCIe bus mastering in case of interface
+Subject: [PATCH 50/57] wil6210: fix PCIe bus mastering in case of interface
  down
 
 In case of interface down, radio is turned off but PCIe mastering is
@@ -18,10 +18,10 @@ Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
  wil6210/wil6210.h  |  4 ++--
  3 files changed, 19 insertions(+), 19 deletions(-)
 
-diff --git a/wil6210/pcie_bus.c b/wil6210/pcie_bus.c
+diff --git a/drivers/net/wireless/ath/wil6210/pcie_bus.c b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 index c338adb..9307a03 100644
---- a/wil6210/pcie_bus.c
-+++ b/wil6210/pcie_bus.c
+--- a/drivers/net/wireless/ath/wil6210/pcie_bus.c
++++ b/drivers/net/wireless/ath/wil6210/pcie_bus.c
 @@ -363,6 +363,9 @@ static int wil6210_suspend(struct device *dev, bool is_runtime)
  	int rc = 0;
  	struct pci_dev *pdev = to_pci_dev(dev);
@@ -80,10 +80,10 @@ index c338adb..9307a03 100644
  			pci_clear_master(pdev);
  	} else {
  		wil->suspend_stats.successful_resumes++;
-diff --git a/wil6210/pm.c b/wil6210/pm.c
+diff --git a/drivers/net/wireless/ath/wil6210/pm.c b/drivers/net/wireless/ath/wil6210/pm.c
 index 43699ac..6fd5420 100644
---- a/wil6210/pm.c
-+++ b/wil6210/pm.c
+--- a/drivers/net/wireless/ath/wil6210/pm.c
++++ b/drivers/net/wireless/ath/wil6210/pm.c
 @@ -304,12 +304,9 @@ static int wil_resume_radio_off(struct wil6210_priv *wil)
  	return rc;
  }
@@ -112,10 +112,10 @@ index 43699ac..6fd5420 100644
  	unsigned long long suspend_time_usec = 0;
  
  	wil_dbg_pm(wil, "resume: %s\n", is_runtime ? "runtime" : "system");
-diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
 index 4777c51..40d5bec 100644
---- a/wil6210/wil6210.h
-+++ b/wil6210/wil6210.h
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
 @@ -1016,8 +1016,8 @@ int wil_pm_runtime_get(struct wil6210_priv *wil);
  void wil_pm_runtime_put(struct wil6210_priv *wil);
  
