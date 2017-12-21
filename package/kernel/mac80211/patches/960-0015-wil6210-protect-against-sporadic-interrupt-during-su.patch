@@ -1,0 +1,56 @@
+From e84493b97977474a365d7c4b8c9651437ae72074 Mon Sep 17 00:00:00 2001
+From: Maya Erez <qca_merez@qca.qualcomm.com>
+Date: Wed, 5 Apr 2017 14:58:09 +0300
+Subject: [PATCH 15/59] wil6210: protect against sporadic interrupt during
+ suspend flow
+
+During the suspend flow, wil6210 HW can send sporadic interrupts,
+while PCIe bus is not operational.
+To prevent that, keep the interrupts disabled during the suspend
+flow and re-enable them only after PCIe enablement in resume.
+
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/pm.c | 13 ++++++++++++-
+ 1 file changed, 12 insertions(+), 1 deletion(-)
+
+diff --git a/wil6210/pm.c b/wil6210/pm.c
+index a0acb2d..7260bef 100644
+--- a/wil6210/pm.c
++++ b/wil6210/pm.c
+@@ -80,12 +80,20 @@ int wil_suspend(struct wil6210_priv *wil, bool is_runtime)
+ 		}
+ 	}
+ 
+-	if (wil->platform_ops.suspend)
++	/* Disable PCIe IRQ to prevent sporadic IRQs when PCIe is suspending */
++	wil_dbg_pm(wil, "Disabling PCIe IRQ before suspending\n");
++	wil_disable_irq(wil);
++
++	if (wil->platform_ops.suspend) {
+ 		rc = wil->platform_ops.suspend(wil->platform_handle);
++		if (rc)
++			wil_enable_irq(wil);
++	}
+ 
+ out:
+ 	wil_dbg_pm(wil, "suspend: %s => %d\n",
+ 		   is_runtime ? "runtime" : "system", rc);
++
+ 	return rc;
+ }
+ 
+@@ -104,6 +112,9 @@ int wil_resume(struct wil6210_priv *wil, bool is_runtime)
+ 		}
+ 	}
+ 
++	wil_dbg_pm(wil, "Enabling PCIe IRQ\n");
++	wil_enable_irq(wil);
++
+ 	/* if netif up, bring hardware up
+ 	 * During open(), IFF_UP set after actual device method
+ 	 * invocation. This prevent recursive call to wil_up()
+-- 
+2.14.3 (Apple Git-98)
+

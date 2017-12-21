@@ -1,0 +1,201 @@
+From 0f8eaefea303f13ba159074c03e1324688821753 Mon Sep 17 00:00:00 2001
+From: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
+Date: Tue, 14 Nov 2017 15:25:44 +0200
+Subject: [PATCH 52/59] wil6210: update statistics for suspend
+
+Currently the statistics show how many successful/failed
+suspend/resume operations the system had.
+Update the statistics by splitting each successful/failed
+suspend/resume operations to radio on/off.
+
+Signed-off-by: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/debugfs.c  | 47 ++++++++++++++++++++++++++++++++---------------
+ wil6210/pcie_bus.c | 20 ++++++++++++++------
+ wil6210/pm.c       |  8 +++++---
+ wil6210/wil6210.h  | 11 ++++++++---
+ 4 files changed, 59 insertions(+), 27 deletions(-)
+
+diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+index 20d8384..6639882 100644
+--- a/wil6210/debugfs.c
++++ b/wil6210/debugfs.c
+@@ -1686,24 +1686,41 @@ static ssize_t wil_read_suspend_stats(struct file *file,
+ 				      size_t count, loff_t *ppos)
+ {
+ 	struct wil6210_priv *wil = file->private_data;
+-	static char text[400];
+-	int n;
++	char *text;
++	int n, ret, text_size = 500;
++
++	text = kmalloc(text_size, GFP_KERNEL);
++	if (!text)
++		return -ENOMEM;
+ 
+-	n = snprintf(text, sizeof(text),
+-		     "Suspend statistics:\n"
++	n = snprintf(text, text_size,
++		     "Radio on suspend statistics:\n"
+ 		     "successful suspends:%ld failed suspends:%ld\n"
+ 		     "successful resumes:%ld failed resumes:%ld\n"
+-		     "rejected by host:%ld rejected by device:%ld\n",
+-		     wil->suspend_stats.successful_suspends,
+-		     wil->suspend_stats.failed_suspends,
+-		     wil->suspend_stats.successful_resumes,
+-		     wil->suspend_stats.failed_resumes,
+-		     wil->suspend_stats.rejected_by_host,
+-		     wil->suspend_stats.rejected_by_device);
+-
+-	n = min_t(int, n, sizeof(text));
+-
+-	return simple_read_from_buffer(user_buf, count, ppos, text, n);
++		     "rejected by device:%ld\n"
++		     "Radio off suspend statistics:\n"
++		     "successful suspends:%ld failed suspends:%ld\n"
++		     "successful resumes:%ld failed resumes:%ld\n"
++		     "General statistics:\n"
++		     "rejected by host:%ld\n",
++		     wil->suspend_stats.r_on.successful_suspends,
++		     wil->suspend_stats.r_on.failed_suspends,
++		     wil->suspend_stats.r_on.successful_resumes,
++		     wil->suspend_stats.r_on.failed_resumes,
++		     wil->suspend_stats.rejected_by_device,
++		     wil->suspend_stats.r_off.successful_suspends,
++		     wil->suspend_stats.r_off.failed_suspends,
++		     wil->suspend_stats.r_off.successful_resumes,
++		     wil->suspend_stats.r_off.failed_resumes,
++		     wil->suspend_stats.rejected_by_host);
++
++	n = min_t(int, n, text_size);
++
++	ret = simple_read_from_buffer(user_buf, count, ppos, text, n);
++
++	kfree(text);
++
++	return ret;
+ }
+ 
+ static const struct file_operations fops_suspend_stats = {
+diff --git a/wil6210/pcie_bus.c b/wil6210/pcie_bus.c
+index 9307a03..981e201 100644
+--- a/wil6210/pcie_bus.c
++++ b/wil6210/pcie_bus.c
+@@ -375,14 +375,16 @@ static int wil6210_suspend(struct device *dev, bool is_runtime)
+ 
+ 	rc = wil_suspend(wil, is_runtime, keep_radio_on);
+ 	if (!rc) {
+-		wil->suspend_stats.successful_suspends++;
+-
+ 		/* In case radio stays on, platform device will control
+ 		 * PCIe master
+ 		 */
+-		if (!keep_radio_on)
++		if (!keep_radio_on) {
+ 			/* disable bus mastering */
+ 			pci_clear_master(pdev);
++			wil->suspend_stats.r_off.successful_suspends++;
++		} else {
++			wil->suspend_stats.r_on.successful_suspends++;
++		}
+ 	}
+ out:
+ 	return rc;
+@@ -408,11 +410,17 @@ static int wil6210_resume(struct device *dev, bool is_runtime)
+ 	rc = wil_resume(wil, is_runtime, keep_radio_on);
+ 	if (rc) {
+ 		wil_err(wil, "device failed to resume (%d)\n", rc);
+-		wil->suspend_stats.failed_resumes++;
+-		if (!keep_radio_on)
++		if (!keep_radio_on) {
+ 			pci_clear_master(pdev);
++			wil->suspend_stats.r_off.failed_resumes++;
++		} else {
++			wil->suspend_stats.r_on.failed_resumes++;
++		}
+ 	} else {
+-		wil->suspend_stats.successful_resumes++;
++		if (keep_radio_on)
++			wil->suspend_stats.r_on.successful_resumes++;
++		else
++			wil->suspend_stats.r_off.successful_resumes++;
+ 	}
+ 
+ 	return rc;
+diff --git a/wil6210/pm.c b/wil6210/pm.c
+index 9fba237..056b180 100644
+--- a/wil6210/pm.c
++++ b/wil6210/pm.c
+@@ -183,7 +183,7 @@ static int wil_suspend_keep_radio_on(struct wil6210_priv *wil)
+ 					break;
+ 				wil_err(wil,
+ 					"TO waiting for idle RX, suspend failed\n");
+-				wil->suspend_stats.failed_suspends++;
++				wil->suspend_stats.r_on.failed_suspends++;
+ 				goto resume_after_fail;
+ 			}
+ 			wil_dbg_ratelimited(wil, "rx vring is not empty -> NAPI\n");
+@@ -199,7 +199,7 @@ static int wil_suspend_keep_radio_on(struct wil6210_priv *wil)
+ 	 */
+ 	if (!wil_is_wmi_idle(wil)) {
+ 		wil_err(wil, "suspend failed due to pending WMI events\n");
+-		wil->suspend_stats.failed_suspends++;
++		wil->suspend_stats.r_on.failed_suspends++;
+ 		goto resume_after_fail;
+ 	}
+ 
+@@ -213,7 +213,7 @@ static int wil_suspend_keep_radio_on(struct wil6210_priv *wil)
+ 		if (rc) {
+ 			wil_err(wil, "platform device failed to suspend (%d)\n",
+ 				rc);
+-			wil->suspend_stats.failed_suspends++;
++			wil->suspend_stats.r_on.failed_suspends++;
+ 			wil_c(wil, RGF_USER_CLKS_CTL_0, BIT_USER_CLKS_RST_PWGD);
+ 			wil_unmask_irq(wil);
+ 			goto resume_after_fail;
+@@ -260,6 +260,7 @@ static int wil_suspend_radio_off(struct wil6210_priv *wil)
+ 		rc = wil_down(wil);
+ 		if (rc) {
+ 			wil_err(wil, "wil_down : %d\n", rc);
++			wil->suspend_stats.r_off.failed_suspends++;
+ 			goto out;
+ 		}
+ 	}
+@@ -272,6 +273,7 @@ static int wil_suspend_radio_off(struct wil6210_priv *wil)
+ 		rc = wil->platform_ops.suspend(wil->platform_handle, false);
+ 		if (rc) {
+ 			wil_enable_irq(wil);
++			wil->suspend_stats.r_off.failed_suspends++;
+ 			goto out;
+ 		}
+ 	}
+diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+index af82a54..8b17d64 100644
+--- a/wil6210/wil6210.h
++++ b/wil6210/wil6210.h
+@@ -82,12 +82,17 @@ static inline u32 WIL_GET_BITS(u32 x, int b0, int b1)
+  */
+ #define WIL_MAX_MPDU_OVERHEAD	(62)
+ 
+-struct wil_suspend_stats {
++struct wil_suspend_count_stats {
+ 	unsigned long successful_suspends;
+-	unsigned long failed_suspends;
+ 	unsigned long successful_resumes;
++	unsigned long failed_suspends;
+ 	unsigned long failed_resumes;
+-	unsigned long rejected_by_device;
++};
++
++struct wil_suspend_stats {
++	struct wil_suspend_count_stats r_off;
++	struct wil_suspend_count_stats r_on;
++	unsigned long rejected_by_device; /* only radio on */
+ 	unsigned long rejected_by_host;
+ };
+ 
+-- 
+2.14.3 (Apple Git-98)
+

@@ -1,0 +1,122 @@
+From 95f33e28ed506b6f3ddeb528164460362d7aa88d Mon Sep 17 00:00:00 2001
+From: Gidon Studinski <qca_gidons@qca.qualcomm.com>
+Date: Thu, 3 Aug 2017 22:08:21 +0300
+Subject: [PATCH 33/59] wil6210: move vring_idle_trsh definition to
+ wil6210_priv
+
+vring_idle_trsh is used in the operational driver, hence
+should not be defined as a debugfs variable.
+
+Signed-off-by: Gidon Studinski <qca_gidons@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/debugfs.c | 5 +----
+ wil6210/main.c    | 1 +
+ wil6210/txrx.c    | 6 +++---
+ wil6210/wil6210.h | 2 +-
+ 4 files changed, 6 insertions(+), 8 deletions(-)
+
+diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+index cd5f83b..ec4cd14 100644
+--- a/wil6210/debugfs.c
++++ b/wil6210/debugfs.c
+@@ -20,7 +20,6 @@
+ #include <linux/pci.h>
+ #include <linux/rtnetlink.h>
+ #include <linux/power_supply.h>
+-
+ #include "wil6210.h"
+ #include "wmi.h"
+ #include "txrx.h"
+@@ -30,7 +29,6 @@
+ static u32 mem_addr;
+ static u32 dbg_txdesc_index;
+ static u32 dbg_vring_index; /* 24+ for Rx, 0..23 for Tx */
+-u32 vring_idle_trsh = 16; /* HW fetches up to 16 descriptors at once */
+ 
+ enum dbg_off_type {
+ 	doff_u32 = 0,
+@@ -1764,6 +1762,7 @@ static const struct dbg_off dbg_wil_off[] = {
+ 	WIL_FIELD(chip_revision, 0444,	doff_u8),
+ 	WIL_FIELD(abft_len, 0644,		doff_u8),
+ 	WIL_FIELD(wakeup_trigger, 0644,		doff_u8),
++	WIL_FIELD(vring_idle_trsh, 0644,	doff_u32),
+ 	{},
+ };
+ 
+@@ -1779,8 +1778,6 @@ static const struct dbg_off dbg_statics[] = {
+ 	{"desc_index",	0644, (ulong)&dbg_txdesc_index, doff_u32},
+ 	{"vring_index",	0644, (ulong)&dbg_vring_index, doff_u32},
+ 	{"mem_addr",	0644, (ulong)&mem_addr, doff_u32},
+-	{"vring_idle_trsh", 0644, (ulong)&vring_idle_trsh,
+-	 doff_u32},
+ 	{"led_polarity", 0644, (ulong)&led_polarity, doff_u8},
+ 	{},
+ };
+diff --git a/wil6210/main.c b/wil6210/main.c
+index b89d017..e2ea490 100644
+--- a/wil6210/main.c
++++ b/wil6210/main.c
+@@ -581,6 +581,7 @@ int wil_priv_init(struct wil6210_priv *wil)
+ 			      WMI_WAKEUP_TRIGGER_BCAST;
+ 	memset(&wil->suspend_stats, 0, sizeof(wil->suspend_stats));
+ 	wil->suspend_stats.min_suspend_time = ULONG_MAX;
++	wil->vring_idle_trsh = 16;
+ 
+ 	return 0;
+ 
+diff --git a/wil6210/txrx.c b/wil6210/txrx.c
+index 75aed39..1f389f0 100644
+--- a/wil6210/txrx.c
++++ b/wil6210/txrx.c
+@@ -1649,7 +1649,7 @@ static int __wil_tx_vring_tso(struct wil6210_priv *wil, struct vring *vring,
+ 
+ 	/* performance monitoring */
+ 	used = wil_vring_used_tx(vring);
+-	if (wil_val_in_range(vring_idle_trsh,
++	if (wil_val_in_range(wil->vring_idle_trsh,
+ 			     used, used + descs_used)) {
+ 		txdata->idle += get_cycles() - txdata->last_idle;
+ 		wil_dbg_txrx(wil,  "Ring[%2d] not idle %d -> %d\n",
+@@ -1796,7 +1796,7 @@ static int __wil_tx_vring(struct wil6210_priv *wil, struct vring *vring,
+ 
+ 	/* performance monitoring */
+ 	used = wil_vring_used_tx(vring);
+-	if (wil_val_in_range(vring_idle_trsh,
++	if (wil_val_in_range(wil->vring_idle_trsh,
+ 			     used, used + nr_frags + 1)) {
+ 		txdata->idle += get_cycles() - txdata->last_idle;
+ 		wil_dbg_txrx(wil,  "Ring[%2d] not idle %d -> %d\n",
+@@ -2158,7 +2158,7 @@ int wil_tx_complete(struct wil6210_priv *wil, int ringid)
+ 
+ 	/* performance monitoring */
+ 	used_new = wil_vring_used_tx(vring);
+-	if (wil_val_in_range(vring_idle_trsh,
++	if (wil_val_in_range(wil->vring_idle_trsh,
+ 			     used_new, used_before_complete)) {
+ 		wil_dbg_txrx(wil, "Ring[%2d] idle %d -> %d\n",
+ 			     ringid, used_before_complete, used_new);
+diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+index addb7cd..d1a11ba 100644
+--- a/wil6210/wil6210.h
++++ b/wil6210/wil6210.h
+@@ -30,7 +30,6 @@ extern bool no_fw_recovery;
+ extern unsigned int mtu_max;
+ extern unsigned short rx_ring_overflow_thrsh;
+ extern int agg_wsize;
+-extern u32 vring_idle_trsh;
+ extern bool rx_align_2;
+ extern bool rx_large_buf;
+ extern bool debug_fw;
+@@ -693,6 +692,7 @@ struct wil6210_priv {
+ 	u8 vring2cid_tid[WIL6210_MAX_TX_RINGS][2]; /* [0] - CID, [1] - TID */
+ 	struct wil_sta_info sta[WIL6210_MAX_CID];
+ 	int bcast_vring;
++	u32 vring_idle_trsh; /* HW fetches up to 16 descriptors at once  */
+ 	/* scan */
+ 	struct cfg80211_scan_request *scan_request;
+ 
+-- 
+2.14.3 (Apple Git-98)
+

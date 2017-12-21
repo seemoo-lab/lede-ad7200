@@ -1,0 +1,57 @@
+From 72a45dae3da608c60f6f246e1221aee0f8d643cb Mon Sep 17 00:00:00 2001
+From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Date: Thu, 15 Jun 2017 09:26:46 +0300
+Subject: [PATCH 25/59] wil6210: prevent platform callbacks after uninit
+
+After calling platform_ops.uninit() it is still possible to invoke
+platform callbacks.
+To prevent this, zero platform_ops right after invoking uninit.
+
+Signed-off-by: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/pcie_bus.c | 13 +++++++++----
+ 1 file changed, 9 insertions(+), 4 deletions(-)
+
+diff --git a/wil6210/pcie_bus.c b/wil6210/pcie_bus.c
+index 3356d5f..1958423 100644
+--- a/wil6210/pcie_bus.c
++++ b/wil6210/pcie_bus.c
+@@ -191,6 +191,13 @@ static int wil_platform_rop_fw_recovery(void *wil_handle)
+ 	return 0;
+ }
+ 
++static void wil_platform_ops_uninit(struct wil6210_priv *wil)
++{
++	if (wil->platform_ops.uninit)
++		wil->platform_ops.uninit(wil->platform_handle);
++	memset(&wil->platform_ops, 0, sizeof(wil->platform_ops));
++}
++
+ static int wil_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ {
+ 	struct wil6210_priv *wil;
+@@ -311,8 +318,7 @@ err_release_reg:
+ err_disable_pdev:
+ 	pci_disable_device(pdev);
+ err_plat:
+-	if (wil->platform_ops.uninit)
+-		wil->platform_ops.uninit(wil->platform_handle);
++	wil_platform_ops_uninit(wil);
+ if_free:
+ 	wil_if_free(wil);
+ 
+@@ -341,8 +347,7 @@ static void wil_pcie_remove(struct pci_dev *pdev)
+ 	pci_iounmap(pdev, csr);
+ 	pci_release_region(pdev, 0);
+ 	pci_disable_device(pdev);
+-	if (wil->platform_ops.uninit)
+-		wil->platform_ops.uninit(wil->platform_handle);
++	wil_platform_ops_uninit(wil);
+ 	wil_if_free(wil);
+ }
+ 
+-- 
+2.14.3 (Apple Git-98)
+

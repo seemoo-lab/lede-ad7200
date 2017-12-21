@@ -1,0 +1,1061 @@
+From 7446e8ebbcfc545a648c070b260b0ee60320d1ac Mon Sep 17 00:00:00 2001
+From: Maya Erez <qca_merez@qca.qualcomm.com>
+Date: Thu, 15 Jun 2017 09:26:47 +0300
+Subject: [PATCH 26/59] wil6210: add support for PCIe D3hot in system suspend
+
+In order to preserve the connection in suspend/resume flow,
+wil6210 host allows going to PCIe D3hot state in suspend,
+instead of performing a full wil6210 device reset. This
+requires the platform ability to initiate wakeup in case of
+RX data. To check that, a new platform API is added.
+In addition, add cfg80211 suspend/resume callbacks
+implementation.
+
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/cfg80211.c     |  38 +++++++++
+ wil6210/debugfs.c      |  49 +++++++++++
+ wil6210/interrupt.c    |   6 ++
+ wil6210/main.c         |   7 +-
+ wil6210/pcie_bus.c     |  50 +++++++----
+ wil6210/pm.c           | 228 ++++++++++++++++++++++++++++++++++++++++++++-----
+ wil6210/txrx.c         |  71 +++++++++++++++
+ wil6210/wil6210.h      |  26 ++++++
+ wil6210/wil_platform.h |   7 +-
+ wil6210/wmi.c          | 143 +++++++++++++++++++++++++++++++
+ wil6210/wmi.h          |  27 +++---
+ 11 files changed, 603 insertions(+), 49 deletions(-)
+
+diff --git a/wil6210/cfg80211.c b/wil6210/cfg80211.c
+index 3f80565..201e0f3 100644
+--- a/wil6210/cfg80211.c
++++ b/wil6210/cfg80211.c
+@@ -1697,6 +1697,42 @@ static int wil_cfg80211_set_power_mgmt(struct wiphy *wiphy,
+ 	return wil_ps_update(wil, ps_profile);
+ }
+ 
++static int wil_cfg80211_suspend(struct wiphy *wiphy,
++				struct cfg80211_wowlan *wow)
++{
++	struct wil6210_priv *wil = wiphy_to_wil(wiphy);
++	int rc;
++
++	/* Setting the wakeup trigger based on wow is TBD */
++
++	if (test_bit(wil_status_suspended, wil->status)) {
++		wil_dbg_pm(wil, "trying to suspend while suspended\n");
++		return 0;
++	}
++
++	rc = wil_can_suspend(wil, false);
++	if (rc)
++		goto out;
++
++	wil_dbg_pm(wil, "suspending\n");
++
++	wil_p2p_stop_discovery(wil);
++
++	wil_abort_scan(wil, true);
++
++out:
++	return rc;
++}
++
++static int wil_cfg80211_resume(struct wiphy *wiphy)
++{
++	struct wil6210_priv *wil = wiphy_to_wil(wiphy);
++
++	wil_dbg_pm(wil, "resuming\n");
++
++	return 0;
++}
++
+ static const struct cfg80211_ops wil_cfg80211_ops = {
+ 	.add_virtual_intf = wil_cfg80211_add_iface,
+ 	.del_virtual_intf = wil_cfg80211_del_iface,
+@@ -1728,6 +1764,8 @@ static const struct cfg80211_ops wil_cfg80211_ops = {
+ 	.start_p2p_device = wil_cfg80211_start_p2p_device,
+ 	.stop_p2p_device = wil_cfg80211_stop_p2p_device,
+ 	.set_power_mgmt = wil_cfg80211_set_power_mgmt,
++	.suspend = wil_cfg80211_suspend,
++	.resume = wil_cfg80211_resume,
+ };
+ 
+ static void wil_wiphy_init(struct wiphy *wiphy)
+diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+index 5648ebb..0ac657d 100644
+--- a/wil6210/debugfs.c
++++ b/wil6210/debugfs.c
+@@ -509,6 +509,10 @@ static ssize_t wil_read_file_ioblob(struct file *file, char __user *user_buf,
+ 	void *buf;
+ 	size_t ret;
+ 
++	if (test_bit(wil_status_suspending, wil_blob->wil->status) ||
++	    test_bit(wil_status_suspended, wil_blob->wil->status))
++		return 0;
++
+ 	if (pos < 0)
+ 		return -EINVAL;
+ 
+@@ -1604,6 +1608,49 @@ static const struct file_operations fops_fw_version = {
+ 	.llseek		= seq_lseek,
+ };
+ 
++/*---------suspend_stats---------*/
++static ssize_t wil_write_suspend_stats(struct file *file,
++				       const char __user *buf,
++				       size_t len, loff_t *ppos)
++{
++	struct wil6210_priv *wil = file->private_data;
++
++	memset(&wil->suspend_stats, 0, sizeof(wil->suspend_stats));
++
++	return len;
++}
++
++static ssize_t wil_read_suspend_stats(struct file *file,
++				      char __user *user_buf,
++				      size_t count, loff_t *ppos)
++{
++	struct wil6210_priv *wil = file->private_data;
++	static char text[400];
++	int n;
++
++	n = snprintf(text, sizeof(text),
++		     "Suspend statistics:\n"
++		     "successful suspends:%ld failed suspends:%ld\n"
++		     "successful resumes:%ld failed resumes:%ld\n"
++		     "rejected by host:%ld rejected by device:%ld\n",
++		     wil->suspend_stats.successful_suspends,
++		     wil->suspend_stats.failed_suspends,
++		     wil->suspend_stats.successful_resumes,
++		     wil->suspend_stats.failed_resumes,
++		     wil->suspend_stats.rejected_by_host,
++		     wil->suspend_stats.rejected_by_device);
++
++	n = min_t(int, n, sizeof(text));
++
++	return simple_read_from_buffer(user_buf, count, ppos, text, n);
++}
++
++static const struct file_operations fops_suspend_stats = {
++	.read = wil_read_suspend_stats,
++	.write = wil_write_suspend_stats,
++	.open  = simple_open,
++};
++
+ /*----------------*/
+ static void wil6210_debugfs_init_blobs(struct wil6210_priv *wil,
+ 				       struct dentry *dbg)
+@@ -1656,6 +1703,7 @@ static const struct {
+ 	{"led_blink_time",	0644,	&fops_led_blink_time},
+ 	{"fw_capabilities",	0444,	&fops_fw_capabilities},
+ 	{"fw_version",	0444,		&fops_fw_version},
++	{"suspend_stats",	0644,	&fops_suspend_stats},
+ };
+ 
+ static void wil6210_debugfs_init_files(struct wil6210_priv *wil,
+@@ -1702,6 +1750,7 @@ static const struct dbg_off dbg_wil_off[] = {
+ 	WIL_FIELD(discovery_mode, 0644,	doff_u8),
+ 	WIL_FIELD(chip_revision, 0444,	doff_u8),
+ 	WIL_FIELD(abft_len, 0644,		doff_u8),
++	WIL_FIELD(wakeup_trigger, 0644,		doff_u8),
+ 	{},
+ };
+ 
+diff --git a/wil6210/interrupt.c b/wil6210/interrupt.c
+index ec81b2b..fea01de 100644
+--- a/wil6210/interrupt.c
++++ b/wil6210/interrupt.c
+@@ -467,6 +467,12 @@ static irqreturn_t wil6210_thread_irq(int irq, void *cookie)
+ 
+ 	wil6210_unmask_irq_pseudo(wil);
+ 
++	if (wil->suspend_resp_rcvd) {
++		wil_dbg_irq(wil, "set suspend_resp_comp to true\n");
++		wil->suspend_resp_comp = true;
++		wake_up_interruptible(&wil->wq);
++	}
++
+ 	return IRQ_HANDLED;
+ }
+ 
+diff --git a/wil6210/main.c b/wil6210/main.c
+index 3208679..daf944a 100644
+--- a/wil6210/main.c
++++ b/wil6210/main.c
+@@ -576,6 +576,9 @@ int wil_priv_init(struct wil6210_priv *wil)
+ 
+ 	wil->ps_profile =  WMI_PS_PROFILE_TYPE_DEFAULT;
+ 
++	wil->wakeup_trigger = WMI_WAKEUP_TRIGGER_UCAST |
++			      WMI_WAKEUP_TRIGGER_BCAST;
++
+ 	return 0;
+ 
+ out_wmi_wq:
+@@ -586,8 +589,10 @@ out_wmi_wq:
+ 
+ void wil6210_bus_request(struct wil6210_priv *wil, u32 kbps)
+ {
+-	if (wil->platform_ops.bus_request)
++	if (wil->platform_ops.bus_request) {
++		wil->bus_request_kbps = kbps;
+ 		wil->platform_ops.bus_request(wil->platform_handle, kbps);
++	}
+ }
+ 
+ /**
+diff --git a/wil6210/pcie_bus.c b/wil6210/pcie_bus.c
+index 1958423..180051b 100644
+--- a/wil6210/pcie_bus.c
++++ b/wil6210/pcie_bus.c
+@@ -112,8 +112,6 @@ static int wil_if_pcie_enable(struct wil6210_priv *wil)
+ 
+ 	wil_dbg_misc(wil, "if_pcie_enable, wmi_only %d\n", wmi_only);
+ 
+-	pdev->msi_enabled = 0;
+-
+ 	pci_set_master(pdev);
+ 
+ 	wil_dbg_misc(wil, "Setup %s interrupt\n", use_msi ? "MSI" : "INTx");
+@@ -243,7 +241,7 @@ static int wil_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	/* rollback to err_plat */
+ 
+ 	rc = pci_enable_device(pdev);
+-	if (rc) {
++	if (rc && pdev->msi_enabled == 0) {
+ 		wil_err(wil,
+ 			"pci_enable_device failed, retry with MSI only\n");
+ 		/* Work around for platforms that can't allocate IRQ:
+@@ -258,6 +256,7 @@ static int wil_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 		goto err_plat;
+ 	}
+ 	/* rollback to err_disable_pdev */
++	pci_set_power_state(pdev, PCI_D0);
+ 
+ 	rc = pci_request_region(pdev, 0, WIL_NAME);
+ 	if (rc) {
+@@ -278,6 +277,15 @@ static int wil_pcie_probe(struct pci_dev *pdev, const struct pci_device_id *id)
+ 	wil_set_capabilities(wil);
+ 	wil6210_clear_irq(wil);
+ 
++	wil->keep_radio_on_during_sleep =
++		wil->platform_ops.keep_radio_on_during_sleep &&
++		wil->platform_ops.keep_radio_on_during_sleep(
++			wil->platform_handle) &&
++		test_bit(WMI_FW_CAPABILITY_D3_SUSPEND, wil->fw_capabilities);
++
++	wil_info(wil, "keep_radio_on_during_sleep (%d)\n",
++		 wil->keep_radio_on_during_sleep);
++
+ 	/* FW should raise IRQ when ready */
+ 	rc = wil_if_pcie_enable(wil);
+ 	if (rc) {
+@@ -374,15 +382,16 @@ static int wil6210_suspend(struct device *dev, bool is_runtime)
+ 		goto out;
+ 
+ 	rc = wil_suspend(wil, is_runtime);
+-	if (rc)
+-		goto out;
+-
+-	/* TODO: how do I bring card in low power state? */
+-
+-	/* disable bus mastering */
+-	pci_clear_master(pdev);
+-	/* PCI will call pci_save_state(pdev) and pci_prepare_to_sleep(pdev) */
++	if (!rc) {
++		wil->suspend_stats.successful_suspends++;
+ 
++		/* If platform device supports keep_radio_on_during_sleep
++		 * it will control PCIe master
++		 */
++		if (!wil->keep_radio_on_during_sleep)
++			/* disable bus mastering */
++			pci_clear_master(pdev);
++	}
+ out:
+ 	return rc;
+ }
+@@ -395,12 +404,21 @@ static int wil6210_resume(struct device *dev, bool is_runtime)
+ 
+ 	wil_dbg_pm(wil, "resume: %s\n", is_runtime ? "runtime" : "system");
+ 
+-	/* allow master */
+-	pci_set_master(pdev);
+-
++	/* If platform device supports keep_radio_on_during_sleep it will
++	 * control PCIe master
++	 */
++	if (!wil->keep_radio_on_during_sleep)
++		/* allow master */
++		pci_set_master(pdev);
+ 	rc = wil_resume(wil, is_runtime);
+-	if (rc)
+-		pci_clear_master(pdev);
++	if (rc) {
++		wil_err(wil, "device failed to resume (%d)\n", rc);
++		wil->suspend_stats.failed_resumes++;
++		if (!wil->keep_radio_on_during_sleep)
++			pci_clear_master(pdev);
++	} else {
++		wil->suspend_stats.successful_resumes++;
++	}
+ 
+ 	return rc;
+ }
+diff --git a/wil6210/pm.c b/wil6210/pm.c
+index 2ae4fe8..ce1f384 100644
+--- a/wil6210/pm.c
++++ b/wil6210/pm.c
+@@ -15,6 +15,7 @@
+  */
+ 
+ #include "wil6210.h"
++#include <linux/jiffies.h>
+ 
+ int wil_can_suspend(struct wil6210_priv *wil, bool is_runtime)
+ {
+@@ -61,20 +62,170 @@ out:
+ 	wil_dbg_pm(wil, "can_suspend: %s => %s (%d)\n",
+ 		   is_runtime ? "runtime" : "system", rc ? "No" : "Yes", rc);
+ 
++	if (rc)
++		wil->suspend_stats.rejected_by_host++;
++
+ 	return rc;
+ }
+ 
+-int wil_suspend(struct wil6210_priv *wil, bool is_runtime)
++static int wil_resume_keep_radio_on(struct wil6210_priv *wil)
+ {
+ 	int rc = 0;
+-	struct net_device *ndev = wil_to_ndev(wil);
+ 
+-	wil_dbg_pm(wil, "suspend: %s\n", is_runtime ? "runtime" : "system");
++	/* wil_status_resuming will be cleared when getting
++	 * WMI_TRAFFIC_RESUME_EVENTID
++	 */
++	set_bit(wil_status_resuming, wil->status);
++	clear_bit(wil_status_suspended, wil->status);
++	wil_c(wil, RGF_USER_CLKS_CTL_0, BIT_USER_CLKS_RST_PWGD);
++	wil_unmask_irq(wil);
+ 
+-	if (test_bit(wil_status_suspended, wil->status)) {
+-		wil_dbg_pm(wil, "trying to suspend while suspended\n");
+-		return 0;
++	wil6210_bus_request(wil, wil->bus_request_kbps_pre_suspend);
++
++	/* Send WMI resume request to the device */
++	rc = wmi_resume(wil);
++	if (rc) {
++		wil_err(wil, "device failed to resume (%d), resetting\n", rc);
++		rc = wil_down(wil);
++		if (rc) {
++			wil_err(wil, "wil_down failed (%d)\n", rc);
++			goto out;
++		}
++		rc = wil_up(wil);
++		if (rc) {
++			wil_err(wil, "wil_up failed (%d)\n", rc);
++			goto out;
++		}
++	}
++
++	/* Wake all queues */
++	if (test_bit(wil_status_fwconnected, wil->status))
++		wil_update_net_queues_bh(wil, NULL, false);
++
++out:
++	if (rc)
++		set_bit(wil_status_suspended, wil->status);
++	return rc;
++}
++
++static int wil_suspend_keep_radio_on(struct wil6210_priv *wil)
++{
++	int rc = 0;
++	unsigned long start, data_comp_to;
++
++	wil_dbg_pm(wil, "suspend keep radio on\n");
++
++	/* Prevent handling of new tx and wmi commands */
++	set_bit(wil_status_suspending, wil->status);
++	wil_update_net_queues_bh(wil, NULL, true);
++
++	if (!wil_is_tx_idle(wil)) {
++		wil_dbg_pm(wil, "Pending TX data, reject suspend\n");
++		wil->suspend_stats.rejected_by_host++;
++		goto reject_suspend;
++	}
++
++	if (!wil_is_rx_idle(wil)) {
++		wil_dbg_pm(wil, "Pending RX data, reject suspend\n");
++		wil->suspend_stats.rejected_by_host++;
++		goto reject_suspend;
++	}
++
++	if (!wil_is_wmi_idle(wil)) {
++		wil_dbg_pm(wil, "Pending WMI events, reject suspend\n");
++		wil->suspend_stats.rejected_by_host++;
++		goto reject_suspend;
++	}
++
++	/* Send WMI suspend request to the device */
++	rc = wmi_suspend(wil);
++	if (rc) {
++		wil_dbg_pm(wil, "wmi_suspend failed, reject suspend (%d)\n",
++			   rc);
++		goto reject_suspend;
++	}
++
++	/* Wait for completion of the pending RX packets */
++	start = jiffies;
++	data_comp_to = jiffies + msecs_to_jiffies(WIL_DATA_COMPLETION_TO_MS);
++	if (test_bit(wil_status_napi_en, wil->status)) {
++		while (!wil_is_rx_idle(wil)) {
++			if (time_after(jiffies, data_comp_to)) {
++				if (wil_is_rx_idle(wil))
++					break;
++				wil_err(wil,
++					"TO waiting for idle RX, suspend failed\n");
++				wil->suspend_stats.failed_suspends++;
++				goto resume_after_fail;
++			}
++			wil_dbg_ratelimited(wil, "rx vring is not empty -> NAPI\n");
++			napi_synchronize(&wil->napi_rx);
++			msleep(20);
++		}
++	}
++
++	/* In case of pending WMI events, reject the suspend
++	 * and resume the device.
++	 * This can happen if the device sent the WMI events before
++	 * approving the suspend.
++	 */
++	if (!wil_is_wmi_idle(wil)) {
++		wil_err(wil, "suspend failed due to pending WMI events\n");
++		wil->suspend_stats.failed_suspends++;
++		goto resume_after_fail;
++	}
++
++	wil_mask_irq(wil);
++
++	/* Disable device reset on PERST */
++	wil_s(wil, RGF_USER_CLKS_CTL_0, BIT_USER_CLKS_RST_PWGD);
++
++	if (wil->platform_ops.suspend) {
++		rc = wil->platform_ops.suspend(wil->platform_handle, true);
++		if (rc) {
++			wil_err(wil, "platform device failed to suspend (%d)\n",
++				rc);
++			wil->suspend_stats.failed_suspends++;
++			wil_c(wil, RGF_USER_CLKS_CTL_0, BIT_USER_CLKS_RST_PWGD);
++			wil_unmask_irq(wil);
++			goto resume_after_fail;
++		}
++	}
++
++	/* Save the current bus request to return to the same in resume */
++	wil->bus_request_kbps_pre_suspend = wil->bus_request_kbps;
++	wil6210_bus_request(wil, 0);
++
++	set_bit(wil_status_suspended, wil->status);
++	clear_bit(wil_status_suspending, wil->status);
++
++	return rc;
++
++resume_after_fail:
++	set_bit(wil_status_resuming, wil->status);
++	clear_bit(wil_status_suspending, wil->status);
++	rc = wmi_resume(wil);
++	/* if resume succeeded, reject the suspend */
++	if (!rc) {
++		rc = -EBUSY;
++		if (test_bit(wil_status_fwconnected, wil->status))
++			wil_update_net_queues_bh(wil, NULL, false);
+ 	}
++	return rc;
++
++reject_suspend:
++	clear_bit(wil_status_suspending, wil->status);
++	if (test_bit(wil_status_fwconnected, wil->status))
++		wil_update_net_queues_bh(wil, NULL, false);
++	return -EBUSY;
++}
++
++static int wil_suspend_radio_off(struct wil6210_priv *wil)
++{
++	int rc = 0;
++	struct net_device *ndev = wil_to_ndev(wil);
++
++	wil_dbg_pm(wil, "suspend radio off\n");
+ 
+ 	/* if netif up, hardware is alive, shut it down */
+ 	if (ndev->flags & IFF_UP) {
+@@ -90,7 +241,7 @@ int wil_suspend(struct wil6210_priv *wil, bool is_runtime)
+ 	wil_disable_irq(wil);
+ 
+ 	if (wil->platform_ops.suspend) {
+-		rc = wil->platform_ops.suspend(wil->platform_handle);
++		rc = wil->platform_ops.suspend(wil->platform_handle, false);
+ 		if (rc) {
+ 			wil_enable_irq(wil);
+ 			goto out;
+@@ -100,6 +251,50 @@ int wil_suspend(struct wil6210_priv *wil, bool is_runtime)
+ 	set_bit(wil_status_suspended, wil->status);
+ 
+ out:
++	wil_dbg_pm(wil, "suspend radio off: %d\n", rc);
++
++	return rc;
++}
++
++static int wil_resume_radio_off(struct wil6210_priv *wil)
++{
++	int rc = 0;
++	struct net_device *ndev = wil_to_ndev(wil);
++
++	wil_dbg_pm(wil, "Enabling PCIe IRQ\n");
++	wil_enable_irq(wil);
++	/* if netif up, bring hardware up
++	 * During open(), IFF_UP set after actual device method
++	 * invocation. This prevent recursive call to wil_up()
++	 * wil_status_suspended will be cleared in wil_reset
++	 */
++	if (ndev->flags & IFF_UP)
++		rc = wil_up(wil);
++	else
++		clear_bit(wil_status_suspended, wil->status);
++
++	return rc;
++}
++
++int wil_suspend(struct wil6210_priv *wil, bool is_runtime)
++{
++	int rc = 0;
++	struct net_device *ndev = wil_to_ndev(wil);
++	bool keep_radio_on = ndev->flags & IFF_UP &&
++			     wil->keep_radio_on_during_sleep;
++
++	wil_dbg_pm(wil, "suspend: %s\n", is_runtime ? "runtime" : "system");
++
++	if (test_bit(wil_status_suspended, wil->status)) {
++		wil_dbg_pm(wil, "trying to suspend while suspended\n");
++		return 0;
++	}
++
++	if (!keep_radio_on)
++		rc = wil_suspend_radio_off(wil);
++	else
++		rc = wil_suspend_keep_radio_on(wil);
++
+ 	wil_dbg_pm(wil, "suspend: %s => %d\n",
+ 		   is_runtime ? "runtime" : "system", rc);
+ 
+@@ -110,29 +305,24 @@ int wil_resume(struct wil6210_priv *wil, bool is_runtime)
+ {
+ 	int rc = 0;
+ 	struct net_device *ndev = wil_to_ndev(wil);
++	bool keep_radio_on = ndev->flags & IFF_UP &&
++			     wil->keep_radio_on_during_sleep;
+ 
+ 	wil_dbg_pm(wil, "resume: %s\n", is_runtime ? "runtime" : "system");
+ 
+ 	if (wil->platform_ops.resume) {
+-		rc = wil->platform_ops.resume(wil->platform_handle);
++		rc = wil->platform_ops.resume(wil->platform_handle,
++					      keep_radio_on);
+ 		if (rc) {
+ 			wil_err(wil, "platform_ops.resume : %d\n", rc);
+ 			goto out;
+ 		}
+ 	}
+ 
+-	wil_dbg_pm(wil, "Enabling PCIe IRQ\n");
+-	wil_enable_irq(wil);
+-
+-	/* if netif up, bring hardware up
+-	 * During open(), IFF_UP set after actual device method
+-	 * invocation. This prevent recursive call to wil_up().
+-	 * wil_status_suspended will be cleared in wil_reset
+-	 */
+-	if (ndev->flags & IFF_UP)
+-		rc = wil_up(wil);
++	if (keep_radio_on)
++		rc = wil_resume_keep_radio_on(wil);
+ 	else
+-		clear_bit(wil_status_suspended, wil->status);
++		rc = wil_resume_radio_off(wil);
+ 
+ out:
+ 	wil_dbg_pm(wil, "resume: %s => %d\n",
+diff --git a/wil6210/txrx.c b/wil6210/txrx.c
+index 400895a..75aed39 100644
+--- a/wil6210/txrx.c
++++ b/wil6210/txrx.c
+@@ -104,6 +104,51 @@ static inline int wil_vring_avail_high(struct vring *vring)
+ 	return wil_vring_avail_tx(vring) > wil_vring_wmark_high(vring);
+ }
+ 
++/* returns true when all tx vrings are empty */
++bool wil_is_tx_idle(struct wil6210_priv *wil)
++{
++	int i;
++	unsigned long data_comp_to;
++
++	for (i = 0; i < WIL6210_MAX_TX_RINGS; i++) {
++		struct vring *vring = &wil->vring_tx[i];
++		int vring_index = vring - wil->vring_tx;
++		struct vring_tx_data *txdata = &wil->vring_tx_data[vring_index];
++
++		spin_lock(&txdata->lock);
++
++		if (!vring->va || !txdata->enabled) {
++			spin_unlock(&txdata->lock);
++			continue;
++		}
++
++		data_comp_to = jiffies + msecs_to_jiffies(
++					WIL_DATA_COMPLETION_TO_MS);
++		if (test_bit(wil_status_napi_en, wil->status)) {
++			while (!wil_vring_is_empty(vring)) {
++				if (time_after(jiffies, data_comp_to)) {
++					wil_dbg_pm(wil,
++						   "TO waiting for idle tx\n");
++					spin_unlock(&txdata->lock);
++					return false;
++				}
++				wil_dbg_ratelimited(wil,
++						    "tx vring is not empty -> NAPI\n");
++				spin_unlock(&txdata->lock);
++				napi_synchronize(&wil->napi_tx);
++				msleep(20);
++				spin_lock(&txdata->lock);
++				if (!vring->va || !txdata->enabled)
++					break;
++			}
++		}
++
++		spin_unlock(&txdata->lock);
++	}
++
++	return true;
++}
++
+ /* wil_val_in_range - check if value in [min,max) */
+ static inline bool wil_val_in_range(int val, int min, int max)
+ {
+@@ -389,6 +434,18 @@ static inline int wil_is_back_req(u8 fc)
+ 	       (IEEE80211_FTYPE_CTL | IEEE80211_STYPE_BACK_REQ);
+ }
+ 
++bool wil_is_rx_idle(struct wil6210_priv *wil)
++{
++	struct vring_rx_desc *_d;
++	struct vring *vring = &wil->vring_rx;
++
++	_d = (struct vring_rx_desc *)&vring->va[vring->swhead].rx;
++	if (_d->dma.status & RX_DMA_STATUS_DU)
++		return false;
++
++	return true;
++}
++
+ /**
+  * reap 1 frame from @swhead
+  *
+@@ -1795,6 +1852,15 @@ static int wil_tx_vring(struct wil6210_priv *wil, struct vring *vring,
+ 
+ 	spin_lock(&txdata->lock);
+ 
++	if (test_bit(wil_status_suspending, wil->status) ||
++	    test_bit(wil_status_suspended, wil->status) ||
++	    test_bit(wil_status_resuming, wil->status)) {
++		wil_dbg_txrx(wil,
++			     "suspend/resume in progress. drop packet\n");
++		spin_unlock(&txdata->lock);
++		return -EINVAL;
++	}
++
+ 	rc = (skb_is_gso(skb) ? __wil_tx_vring_tso : __wil_tx_vring)
+ 	     (wil, vring, skb);
+ 
+@@ -1847,6 +1913,11 @@ static inline void __wil_update_net_queues(struct wil6210_priv *wil,
+ 		return;
+ 	}
+ 
++	/* Do not wake the queues in suspend flow */
++	if (test_bit(wil_status_suspending, wil->status) ||
++	    test_bit(wil_status_suspended, wil->status))
++		return;
++
+ 	/* check wake */
+ 	for (i = 0; i < WIL6210_MAX_TX_RINGS; i++) {
+ 		struct vring *cur_vring = &wil->vring_tx[i];
+diff --git a/wil6210/wil6210.h b/wil6210/wil6210.h
+index ad78acb..869bef5 100644
+--- a/wil6210/wil6210.h
++++ b/wil6210/wil6210.h
+@@ -83,6 +83,15 @@ static inline u32 WIL_GET_BITS(u32 x, int b0, int b1)
+  */
+ #define WIL_MAX_MPDU_OVERHEAD	(62)
+ 
++struct wil_suspend_stats {
++	unsigned long successful_suspends;
++	unsigned long failed_suspends;
++	unsigned long successful_resumes;
++	unsigned long failed_resumes;
++	unsigned long rejected_by_device;
++	unsigned long rejected_by_host;
++};
++
+ /* Calculate MAC buffer size for the firmware. It includes all overhead,
+  * as it will go over the air, and need to be 8 byte aligned
+  */
+@@ -290,6 +299,8 @@ enum {
+ #define ISR_MISC_MBOX_EVT	BIT_DMA_EP_MISC_ICR_FW_INT(1)
+ #define ISR_MISC_FW_ERROR	BIT_DMA_EP_MISC_ICR_FW_INT(3)
+ 
++#define WIL_DATA_COMPLETION_TO_MS 200
++
+ /* Hardware definitions end */
+ struct fw_map {
+ 	u32 from; /* linker address - from, inclusive */
+@@ -418,7 +429,9 @@ enum { /* for wil6210_priv.status */
+ 	wil_status_irqen, /* FIXME: interrupts enabled - for debug */
+ 	wil_status_napi_en, /* NAPI enabled protected by wil->mutex */
+ 	wil_status_resetting, /* reset in progress */
++	wil_status_suspending, /* suspend in progress */
+ 	wil_status_suspended, /* suspend completed, device is suspended */
++	wil_status_resuming, /* resume in progress */
+ 	wil_status_last /* keep last */
+ };
+ 
+@@ -682,9 +695,12 @@ struct wil6210_priv {
+ 	struct wil_blob_wrapper blobs[ARRAY_SIZE(fw_mapping)];
+ 	u8 discovery_mode;
+ 	u8 abft_len;
++	u8 wakeup_trigger;
++	struct wil_suspend_stats suspend_stats;
+ 
+ 	void *platform_handle;
+ 	struct wil_platform_ops platform_ops;
++	bool keep_radio_on_during_sleep;
+ 
+ 	struct pmc_ctx pmc;
+ 
+@@ -707,6 +723,11 @@ struct wil6210_priv {
+ 	struct notifier_block pm_notify;
+ #endif /* CONFIG_PM_SLEEP */
+ #endif /* CONFIG_PM */
++
++	bool suspend_resp_rcvd;
++	bool suspend_resp_comp;
++	u32 bus_request_kbps;
++	u32 bus_request_kbps_pre_suspend;
+ };
+ 
+ #define wil_to_wiphy(i) (i->wdev->wiphy)
+@@ -963,6 +984,11 @@ bool wil_fw_verify_file_exists(struct wil6210_priv *wil, const char *name);
+ int wil_can_suspend(struct wil6210_priv *wil, bool is_runtime);
+ int wil_suspend(struct wil6210_priv *wil, bool is_runtime);
+ int wil_resume(struct wil6210_priv *wil, bool is_runtime);
++bool wil_is_wmi_idle(struct wil6210_priv *wil);
++int wmi_resume(struct wil6210_priv *wil);
++int wmi_suspend(struct wil6210_priv *wil);
++bool wil_is_tx_idle(struct wil6210_priv *wil);
++bool wil_is_rx_idle(struct wil6210_priv *wil);
+ 
+ int wil_fw_copy_crash_dump(struct wil6210_priv *wil, void *dest, u32 size);
+ void wil_fw_core_dump(struct wil6210_priv *wil);
+diff --git a/wil6210/wil_platform.h b/wil6210/wil_platform.h
+index f8c4117..5d9e4bf 100644
+--- a/wil6210/wil_platform.h
++++ b/wil6210/wil_platform.h
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright (c) 2014-2016 Qualcomm Atheros, Inc.
++ * Copyright (c) 2014-2017 Qualcomm Atheros, Inc.
+  *
+  * Permission to use, copy, modify, and/or distribute this software for any
+  * purpose with or without fee is hereby granted, provided that the above
+@@ -33,10 +33,11 @@ enum wil_platform_event {
+  */
+ struct wil_platform_ops {
+ 	int (*bus_request)(void *handle, uint32_t kbps /* KBytes/Sec */);
+-	int (*suspend)(void *handle);
+-	int (*resume)(void *handle);
++	int (*suspend)(void *handle, bool keep_device_power);
++	int (*resume)(void *handle, bool device_powered_on);
+ 	void (*uninit)(void *handle);
+ 	int (*notify)(void *handle, enum wil_platform_event evt);
++	bool (*keep_radio_on_during_sleep)(void *handle);
+ };
+ 
+ /**
+diff --git a/wil6210/wmi.c b/wil6210/wmi.c
+index 93902cb..26cf722 100644
+--- a/wil6210/wmi.c
++++ b/wil6210/wmi.c
+@@ -37,6 +37,8 @@ module_param(led_id, byte, 0444);
+ MODULE_PARM_DESC(led_id,
+ 		 " 60G device led enablement. Set the led ID (0-2) to enable");
+ 
++#define WIL_WAIT_FOR_SUSPEND_RESUME_COMP 200
++
+ /**
+  * WMI event receiving - theory of operations
+  *
+@@ -233,6 +235,16 @@ static int __wmi_send(struct wil6210_priv *wil, u16 cmdid, void *buf, u16 len)
+ 		return -EAGAIN;
+ 	}
+ 
++	/* Allow sending only suspend / resume commands during susepnd flow */
++	if ((test_bit(wil_status_suspending, wil->status) ||
++	     test_bit(wil_status_suspended, wil->status) ||
++	     test_bit(wil_status_resuming, wil->status)) &&
++	     ((cmdid != WMI_TRAFFIC_SUSPEND_CMDID) &&
++	      (cmdid != WMI_TRAFFIC_RESUME_CMDID))) {
++		wil_err(wil, "WMI: reject send_command during suspend\n");
++		return -EINVAL;
++	}
++
+ 	if (!head) {
+ 		wil_err(wil, "WMI head is garbage: 0x%08x\n", r->head);
+ 		return -EINVAL;
+@@ -862,6 +874,11 @@ void wmi_recv_cmd(struct wil6210_priv *wil)
+ 		return;
+ 	}
+ 
++	if (test_bit(wil_status_suspended, wil->status)) {
++		wil_err(wil, "suspended. cannot handle WMI event\n");
++		return;
++	}
++
+ 	for (n = 0;; n++) {
+ 		u16 len;
+ 		bool q;
+@@ -914,6 +931,15 @@ void wmi_recv_cmd(struct wil6210_priv *wil)
+ 			struct wmi_cmd_hdr *wmi = &evt->event.wmi;
+ 			u16 id = le16_to_cpu(wmi->command_id);
+ 			u32 tstamp = le32_to_cpu(wmi->fw_timestamp);
++			if (test_bit(wil_status_resuming, wil->status)) {
++				if (id == WMI_TRAFFIC_RESUME_EVENTID)
++					clear_bit(wil_status_resuming,
++						  wil->status);
++				else
++					wil_err(wil,
++						"WMI evt %d while resuming\n",
++						id);
++			}
+ 			spin_lock_irqsave(&wil->wmi_ev_lock, flags);
+ 			if (wil->reply_id && wil->reply_id == id) {
+ 				if (wil->reply_buf) {
+@@ -921,6 +947,11 @@ void wmi_recv_cmd(struct wil6210_priv *wil)
+ 					       min(len, wil->reply_size));
+ 					immed_reply = true;
+ 				}
++				if (id == WMI_TRAFFIC_SUSPEND_EVENTID) {
++					wil_dbg_wmi(wil,
++						    "set suspend_resp_rcvd\n");
++					wil->suspend_resp_rcvd = true;
++				}
+ 			}
+ 			spin_unlock_irqrestore(&wil->wmi_ev_lock, flags);
+ 
+@@ -1762,6 +1793,85 @@ void wmi_event_flush(struct wil6210_priv *wil)
+ 	spin_unlock_irqrestore(&wil->wmi_ev_lock, flags);
+ }
+ 
++int wmi_suspend(struct wil6210_priv *wil)
++{
++	int rc;
++	struct wmi_traffic_suspend_cmd cmd = {
++		.wakeup_trigger = wil->wakeup_trigger,
++	};
++	struct {
++		struct wmi_cmd_hdr wmi;
++		struct wmi_traffic_suspend_event evt;
++	} __packed reply;
++	u32 suspend_to = WIL_WAIT_FOR_SUSPEND_RESUME_COMP;
++
++	wil->suspend_resp_rcvd = false;
++	wil->suspend_resp_comp = false;
++
++	reply.evt.status = WMI_TRAFFIC_SUSPEND_REJECTED;
++
++	rc = wmi_call(wil, WMI_TRAFFIC_SUSPEND_CMDID, &cmd, sizeof(cmd),
++		      WMI_TRAFFIC_SUSPEND_EVENTID, &reply, sizeof(reply),
++		      suspend_to);
++	if (rc) {
++		wil_err(wil, "wmi_call for suspend req failed, rc=%d\n", rc);
++		if (rc == -ETIME)
++			/* wmi_call TO */
++			wil->suspend_stats.rejected_by_device++;
++		else
++			wil->suspend_stats.rejected_by_host++;
++		goto out;
++	}
++
++	wil_dbg_wmi(wil, "waiting for suspend_response_completed\n");
++
++	rc = wait_event_interruptible_timeout(wil->wq,
++					      wil->suspend_resp_comp,
++					      msecs_to_jiffies(suspend_to));
++	if (rc == 0) {
++		wil_err(wil, "TO waiting for suspend_response_completed\n");
++		if (wil->suspend_resp_rcvd)
++			/* Device responded but we TO due to another reason */
++			wil->suspend_stats.rejected_by_host++;
++		else
++			wil->suspend_stats.rejected_by_device++;
++		rc = -EBUSY;
++		goto out;
++	}
++
++	wil_dbg_wmi(wil, "suspend_response_completed rcvd\n");
++	if (reply.evt.status == WMI_TRAFFIC_SUSPEND_REJECTED) {
++		wil_dbg_pm(wil, "device rejected the suspend\n");
++		wil->suspend_stats.rejected_by_device++;
++	}
++	rc = reply.evt.status;
++
++out:
++	wil->suspend_resp_rcvd = false;
++	wil->suspend_resp_comp = false;
++
++	return rc;
++}
++
++int wmi_resume(struct wil6210_priv *wil)
++{
++	int rc;
++	struct {
++		struct wmi_cmd_hdr wmi;
++		struct wmi_traffic_resume_event evt;
++	} __packed reply;
++
++	reply.evt.status = WMI_TRAFFIC_RESUME_FAILED;
++
++	rc = wmi_call(wil, WMI_TRAFFIC_RESUME_CMDID, NULL, 0,
++		      WMI_TRAFFIC_RESUME_EVENTID, &reply, sizeof(reply),
++		      WIL_WAIT_FOR_SUSPEND_RESUME_COMP);
++	if (rc)
++		return rc;
++
++	return reply.evt.status;
++}
++
+ static bool wmi_evt_call_handler(struct wil6210_priv *wil, int id,
+ 				 void *d, int len)
+ {
+@@ -1851,3 +1961,36 @@ void wmi_event_worker(struct work_struct *work)
+ 	}
+ 	wil_dbg_wmi(wil, "event_worker: Finished\n");
+ }
++
++bool wil_is_wmi_idle(struct wil6210_priv *wil)
++{
++	ulong flags;
++	struct wil6210_mbox_ring *r = &wil->mbox_ctl.rx;
++	bool rc = false;
++
++	spin_lock_irqsave(&wil->wmi_ev_lock, flags);
++
++	/* Check if there are pending WMI events in the events queue */
++	if (!list_empty(&wil->pending_wmi_ev)) {
++		wil_dbg_pm(wil, "Pending WMI events in queue\n");
++		goto out;
++	}
++
++	/* Check if there is a pending WMI call */
++	if (wil->reply_id) {
++		wil_dbg_pm(wil, "Pending WMI call\n");
++		goto out;
++	}
++
++	/* Check if there are pending RX events in mbox */
++	r->head = wil_r(wil, RGF_MBOX +
++			offsetof(struct wil6210_mbox_ctl, rx.head));
++	if (r->tail != r->head)
++		wil_dbg_pm(wil, "Pending WMI mbox events\n");
++	else
++		rc = true;
++
++out:
++	spin_unlock_irqrestore(&wil->wmi_ev_lock, flags);
++	return rc;
++}
+diff --git a/wil6210/wmi.h b/wil6210/wmi.h
+index f7f5f4f..256f63c 100644
+--- a/wil6210/wmi.h
++++ b/wil6210/wmi.h
+@@ -59,6 +59,7 @@ enum wmi_fw_capability {
+ 	WMI_FW_CAPABILITY_DISABLE_AP_SME	= 4,
+ 	WMI_FW_CAPABILITY_WMI_ONLY		= 5,
+ 	WMI_FW_CAPABILITY_THERMAL_THROTTLING	= 7,
++	WMI_FW_CAPABILITY_D3_SUSPEND		= 8,
+ 	WMI_FW_CAPABILITY_MAX,
+ };
+ 
+@@ -157,7 +158,7 @@ enum wmi_command_id {
+ 	WMI_FLASH_READ_CMDID				= 0x902,
+ 	WMI_FLASH_WRITE_CMDID				= 0x903,
+ 	/* Power management */
+-	WMI_TRAFFIC_DEFERRAL_CMDID			= 0x904,
++	WMI_TRAFFIC_SUSPEND_CMDID			= 0x904,
+ 	WMI_TRAFFIC_RESUME_CMDID			= 0x905,
+ 	/* P2P */
+ 	WMI_P2P_CFG_CMDID				= 0x910,
+@@ -500,8 +501,14 @@ struct wmi_port_delete_cmd {
+ 	u8 reserved[3];
+ } __packed;
+ 
+-/* WMI_TRAFFIC_DEFERRAL_CMDID */
+-struct wmi_traffic_deferral_cmd {
++/* WMI_TRAFFIC_SUSPEND_CMD wakeup trigger bit mask values */
++enum wmi_wakeup_trigger {
++	WMI_WAKEUP_TRIGGER_UCAST	= 0x01,
++	WMI_WAKEUP_TRIGGER_BCAST	= 0x02,
++};
++
++/* WMI_TRAFFIC_SUSPEND_CMDID */
++struct wmi_traffic_suspend_cmd {
+ 	/* Bit vector: bit[0] - wake on Unicast, bit[1] - wake on Broadcast */
+ 	u8 wakeup_trigger;
+ } __packed;
+@@ -1084,7 +1091,7 @@ enum wmi_event_id {
+ 	WMI_FLASH_READ_DONE_EVENTID			= 0x1902,
+ 	WMI_FLASH_WRITE_DONE_EVENTID			= 0x1903,
+ 	/* Power management */
+-	WMI_TRAFFIC_DEFERRAL_EVENTID			= 0x1904,
++	WMI_TRAFFIC_SUSPEND_EVENTID			= 0x1904,
+ 	WMI_TRAFFIC_RESUME_EVENTID			= 0x1905,
+ 	/* P2P */
+ 	WMI_P2P_CFG_DONE_EVENTID			= 0x1910,
+@@ -1926,14 +1933,14 @@ struct wmi_link_maintain_cfg_read_done_event {
+ 	struct wmi_link_maintain_cfg lm_cfg;
+ } __packed;
+ 
+-enum wmi_traffic_deferral_status {
+-	WMI_TRAFFIC_DEFERRAL_APPROVED	= 0x0,
+-	WMI_TRAFFIC_DEFERRAL_REJECTED	= 0x1,
++enum wmi_traffic_suspend_status {
++	WMI_TRAFFIC_SUSPEND_APPROVED	= 0x0,
++	WMI_TRAFFIC_SUSPEND_REJECTED	= 0x1,
+ };
+ 
+-/* WMI_TRAFFIC_DEFERRAL_EVENTID */
+-struct wmi_traffic_deferral_event {
+-	/* enum wmi_traffic_deferral_status_e */
++/* WMI_TRAFFIC_SUSPEND_EVENTID */
++struct wmi_traffic_suspend_event {
++	/* enum wmi_traffic_suspend_status_e */
+ 	u8 status;
+ } __packed;
+ 
+-- 
+2.14.3 (Apple Git-98)
+
