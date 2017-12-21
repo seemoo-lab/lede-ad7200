@@ -1,16 +1,17 @@
-From f97aea5175dc1b0379e76c493c8f294d0142c20b Mon Sep 17 00:00:00 2001
+From a839d2760b7db05b624df2a97fab930434b78f9e Mon Sep 17 00:00:00 2001
 From: Daniel Wegemer <dwegemer@seemoo.tu-darmstadt.de>
 Date: Wed, 29 Nov 2017 11:13:35 +0100
-Subject: [PATCH] Update debugfs.c, fixed bug in reassociaton
+Subject: [PATCH 59/59] seemoo: update debugfs.c, fixed bug in reassociaton
 
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
 ---
- debugfs.c | 2 +-
+ wil6210/debugfs.c | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)
 
-diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
-index 332a2bb..a74354c 100644
---- a/drivers/net/wireless/ath/wil6210/debugfs.c
-+++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+index 8348f9c..2258371 100644
+--- a/wil6210/debugfs.c
++++ b/wil6210/debugfs.c
 @@ -59,7 +59,7 @@ u8 my_console_uc[MY_CONSOLE_MAX_LEN];
  u32 my_console_fw_len;
  u32 my_console_uc_len;
@@ -21,5 +22,5 @@ index 332a2bb..a74354c 100644
  struct wil6210_priv *my_glob_wil = NULL;
  
 -- 
-2.13.6 (Apple Git-96)
+2.14.3 (Apple Git-98)
 

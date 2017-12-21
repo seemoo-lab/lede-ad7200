@@ -1,0 +1,97 @@
+From 97f95ae6f547c4188a195bd162ad1584ab98fa4a Mon Sep 17 00:00:00 2001
+From: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+Date: Thu, 21 Dec 2017 14:28:10 +0100
+Subject: [PATCH 57/59] seemoo: moved sweepinfo
+
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/sweep_info.h | 77 ++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 77 insertions(+)
+ create mode 100644 wil6210/sweep_info.h
+
+diff --git a/wil6210/sweep_info.h b/wil6210/sweep_info.h
+new file mode 100644
+index 0000000..73d1c9f
+--- /dev/null
++++ b/wil6210/sweep_info.h
+@@ -0,0 +1,77 @@
++#ifndef SWEEP_INFO_H_
++#define SWEEP_INFO_H_
++
++/* ATTENTION: This is a _shared_ header between the wil6210 driver and firmware
++ * Both driver and firmware do not share every entry in here
++ * but we still keep everything in a single header file for now
++ */
++
++// ---------------------------------------------------------------------------
++// Shared between driver and firmware
++// ---------------------------------------------------------------------------
++
++#define SWEEP_DUMP_SIZE 256
++
++typedef struct {
++    uint16_t sector_id;
++    int16_t snr;
++    uint32_t rssi;
++    uint8_t macaddr[6];
++    uint8_t flags[2];
++} sector_info_t;
++
++typedef struct {
++    uint32_t cur_pos;
++    uint32_t ctr_pkts;
++    uint32_t ctr_swps;
++    sector_info_t dump[SWEEP_DUMP_SIZE];
++} sweep_dump_t;
++
++#define PTR_MEM_SWEEP_CUR_FEEDBACK 0x93D000
++#define PTR_MEM_SWEEP_DUMP 0x93D018
++
++// ---------------------------------------------------------------------------
++// Used only by firmware
++// ---------------------------------------------------------------------------
++
++#define PTR_SEL_SWEEP_SECTOR_INFO 0x800F1C
++// #define PTR_CUR_SWEEP_SECTOR_INFO 0x800F9C
++#define PTR_CUR_SWEEP_SECTOR_INFO 0x801038
++
++#define PTR_CUR_FRAME_BUFFER 0x804010
++
++typedef struct{
++        uint8_t macaddr [6];
++        uint16_t sector_id;
++        uint16_t snr;
++        uint8_t reserved[2];
++} custom_sweep_feedback_t;
++
++typedef struct {
++   // bool force_sector;
++   // bool force_rssi;
++   // uint16_t sector_id;
++   // int32_t snr;
++   // uint32_t crrsi;
++    custom_sweep_feedback_t sweep_feedback [8];
++} sweep_overwrite_t;
++
++#define PTR_MEM_SWEEP_OVERWRITE 0x93D00C
++
++// ---------------------------------------------------------------------------
++// Used only by driver
++// ---------------------------------------------------------------------------
++
++#define PTR_SWEEP_STATS 0x9406FC
++
++typedef struct {
++    uint32_t ctr_valid;
++    uint32_t ctr_overflow;
++    uint16_t ctr_null;
++    uint16_t ctr_missed;
++    uint8_t reserved;
++    uint8_t flag;
++    uint16_t reserved2;
++} sweep_stats_t;
++
++#endif /* SWEEP_INFO_H_ */
+-- 
+2.14.3 (Apple Git-98)
+

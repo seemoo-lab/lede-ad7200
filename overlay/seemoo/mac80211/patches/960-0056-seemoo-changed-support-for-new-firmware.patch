@@ -1,0 +1,108 @@
+From abaa69dd07975861798e68721dba8a63271ff6ff Mon Sep 17 00:00:00 2001
+From: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+Date: Tue, 5 Sep 2017 09:50:41 +0200
+Subject: [PATCH 56/59] seemoo: changed support for new firmware
+
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/debugfs.c | 55 +++++++++++++++++--------------------------------------
+ 1 file changed, 17 insertions(+), 38 deletions(-)
+
+diff --git a/wil6210/debugfs.c b/wil6210/debugfs.c
+index aab7932..8348f9c 100644
+--- a/wil6210/debugfs.c
++++ b/wil6210/debugfs.c
+@@ -1845,27 +1845,15 @@ sweep_dump_show(struct seq_file *s, void *data) {
+ 
+ 	if(my_glob_wil != NULL) {
+ 		if(test_bit(WMI_FW_CAPABILITY_MOD_FW, my_glob_wil->fw_capabilities)) {
+-			sweep_stats_t sweep_stats;
+-
+-			// Copy the statistics			
+-			wil_memcpy_fromio_32((void *) &sweep_stats, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_SWEEP_STATS), sizeof(sweep_stats_t));
+-			
+-			//Copy the Feedback Reports
+-                        wil_memcpy_fromio_32((void *) &feedback_info, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_CUR_FEEDBACK), 
+-				sizeof(sector_info_t));
+ 
+ 			// Copy the Sweep Dump
+                         wil_memcpy_fromio_32((void *) &sweep_dump, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_DUMP), sizeof(sweep_dump_t));
+ 	
+-			// Write results to output
+-			seq_printf(s, "Feedback: [sec: %2d, crssi: %6d, snr: %2d dB]\n",
+-				feedback_info.sector_id, feedback_info.crssi, feedback_info.snr);
+-
+-			seq_printf(s, "Counter: %d swps, %d pkts, %d miss, %d ok, %d ovfl, %d null\n", 
+-				sweep_dump.ctr_swps,  sweep_dump.ctr_pkts, sweep_stats.ctr_missed, sweep_stats.ctr_valid, 
+-				sweep_stats.ctr_overflow, sweep_stats.ctr_null);
++			seq_printf(s, "Counter: %d swps, %d pkts\n", 
++				sweep_dump.ctr_swps,  sweep_dump.ctr_pkts);
+ 			
+ 			seq_printf(s, "Sector Sweep Dump: {\n");
++		
+ 			// Iterate over all members in sweep dump
+ 			for(i=0; i < SWEEP_DUMP_SIZE; i++) {
+ 				p = (sweep_dump.cur_pos + i) % SWEEP_DUMP_SIZE;
+@@ -1876,10 +1864,12 @@ sweep_dump_show(struct seq_file *s, void *data) {
+ 				}
+ 				
+ 				// Determine the SNR in dB
+-				snr_db = (snr_qdb + 2) >> 2;	
+-				
+-				seq_printf(s, "  [sec: %2d crssi: %7d snr: %3d qdB (%2d dB)\n", 
+-					sweep_dump.dump[p].sector_id, sweep_dump.dump[p].crssi, snr_qdb, snr_db );
++				snr_db = (snr_qdb + 2) >> 2;					
++
++				seq_printf(s, "  [sec: %2d rssi: %7d snr: %3d qdB (%2d dB) src: %02x:%02x:%02x:%02x:%02x:%02x]\n", 
++					sweep_dump.dump[p].sector_id, sweep_dump.dump[p].rssi, snr_qdb, snr_db,
++					sweep_dump.dump[p].macaddr[0], sweep_dump.dump[p].macaddr[1], sweep_dump.dump[p].macaddr[2],
++					sweep_dump.dump[p].macaddr[3], sweep_dump.dump[p].macaddr[4], sweep_dump.dump[p].macaddr[5] );
+ 			
+ 			}
+ 			seq_printf(s, "}\n");
+@@ -1914,25 +1904,12 @@ sweep_dump_cur_show(struct seq_file *s, void *data) {
+ 
+         if(my_glob_wil != NULL) {
+                 if(test_bit(WMI_FW_CAPABILITY_MOD_FW, my_glob_wil->fw_capabilities)) {
+-                        sweep_stats_t sweep_stats;
+-
+-                        // Copy the statistics
+-                        wil_memcpy_fromio_32((void *) &sweep_stats, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_SWEEP_STATS), sizeof(sweep_stats_t));
+-
+-                        //Copy the Feedback Reports
+-                        wil_memcpy_fromio_32((void *) &feedback_info, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_CUR_FEEDBACK),
+-                                sizeof(sector_info_t));
+-
+-                        // Copy the Sweep Dump
++                                        
++			// Copy the Sweep Dump
+                         wil_memcpy_fromio_32((void *) &sweep_dump, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_DUMP), sizeof(sweep_dump_t));
+ 
+-                        // Write results to output
+-                        seq_printf(s, "Feedback: [sec: %2d, crssi: %6d, snr: %2d dB]\n",
+-                                feedback_info.sector_id, feedback_info.crssi, feedback_info.snr);
+-
+-                        seq_printf(s, "Counter: %d swps, %d pkts, %d miss, %d ok, %d ovfl, %d null\n",
+-                                sweep_dump.ctr_swps,  sweep_dump.ctr_pkts, sweep_stats.ctr_missed, sweep_stats.ctr_valid,
+-                                sweep_stats.ctr_overflow, sweep_stats.ctr_null);
++                        seq_printf(s, "Counter: %d swps, %d pkts\n",
++                                sweep_dump.ctr_swps,  sweep_dump.ctr_pkts);
+ 
+                         seq_printf(s, "Sector Sweep Dump: {\n");
+ 
+@@ -1955,8 +1932,10 @@ sweep_dump_cur_show(struct seq_file *s, void *data) {
+                                 // Determine the SNR in dB
+                                 snr_db = (snr_qdb + 2) >> 2;
+ 
+-                                seq_printf(s, "  [sec: %2d crssi: %7d snr: %3d qdB (%2d dB)\n",
+-                                        sweep_dump.dump[p].sector_id, sweep_dump.dump[p].crssi, snr_qdb, snr_db );
++				seq_printf(s, "  [sec: %2d rssi: %7d snr: %3d qdB (%2d dB) src: %02x:%02x:%02x:%02x:%02x:%02x]\n",
++                                        sweep_dump.dump[p].sector_id, sweep_dump.dump[p].rssi, snr_qdb, snr_db,
++                                        sweep_dump.dump[p].macaddr[0], sweep_dump.dump[p].macaddr[1], sweep_dump.dump[p].macaddr[2],
++                                        sweep_dump.dump[p].macaddr[3], sweep_dump.dump[p].macaddr[4], sweep_dump.dump[p].macaddr[5] );
+ 
+ 			} 
+                         seq_printf(s, "}\n");
+-- 
+2.14.3 (Apple Git-98)
+
