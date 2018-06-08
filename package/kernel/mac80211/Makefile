@@ -45,6 +45,7 @@ PKG_DRIVERS = \
 	rtlwifi rtlwifi-pci rtlwifi-usb rtl8192c-common rtl8192ce rtl8192se \
 	rtl8192de rtl8192cu \
 	rtl8xxxu \
+	wil6210 \
 	wlcore wl12xx wl18xx \
 	zd1211rw
 
@@ -290,6 +291,18 @@ define KernelPackage/ath10k/description
 This module adds support for wireless adapters based on
 Atheros IEEE 802.11ac family of chipsets. For now only
 PCI is supported.
+endef
+
+define KernelPackage/wil6210
+	$(call KernelPackage/mac80211/Default)
+	TITLE:=Driver for QCA9008 802.11ad
+	DEPENDS:=@PCI_SUPPORT +kmod-mac80211 +kmod-ath +wil6210-firmware
+	FILES:=$(PKG_BUILD_DIR)/drivers/net/wireless/ath/wil6210/wil6210.ko
+	AUTOLOAD:=$(call AutoProbe,wil6210)
+endef
+
+define KernelPackage/wil6210/description
+	Kernel Module for 802.11ad support on Qualcomm devices
 endef
 
 #Broadcom firmware
@@ -1537,6 +1550,9 @@ else
   config-y += ATH5K_PCI
 endif
 
+config-$(call config_package,wil6210) += WIL6210 CFG80211
+config-y += WIL6210
+
 config-$(call config_package,carl9170) += CARL9170
 
 config-$(call config_package,b43) += B43
@@ -1841,6 +1857,7 @@ $(eval $(call KernelPackage,rtl8192se))
 $(eval $(call KernelPackage,rtl8192de))
 $(eval $(call KernelPackage,rtl8192cu))
 $(eval $(call KernelPackage,rtl8xxxu))
+$(eval $(call KernelPackage,wil6210))
 $(eval $(call KernelPackage,wlcore))
 $(eval $(call KernelPackage,wl12xx))
 $(eval $(call KernelPackage,wl18xx))
