@@ -1,0 +1,26 @@
+From eb321f0580cff1c4bc9419d8b6c3279c5b358d0a Mon Sep 17 00:00:00 2001
+From: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+Date: Thu, 21 Dec 2017 15:18:52 +0100
+Subject: [PATCH 58/58] seemoo: fixed issue with fw_comment
+
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/fw_inc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/fw_inc.c b/drivers/net/wireless/ath/wil6210/fw_inc.c
+index 3e9cc95..126d581 100644
+--- a/drivers/net/wireless/ath/wil6210/fw_inc.c
++++ b/drivers/net/wireless/ath/wil6210/fw_inc.c
+@@ -435,7 +435,7 @@ static const struct {
+ 	int (*parse_handler)(struct wil6210_priv *wil, const void *data,
+ 			     size_t size);
+ } wil_fw_handlers[] = {
+-	{wil_fw_type_comment, fw_handle_capabilities, fw_handle_capabilities},
++	{wil_fw_type_comment, fw_handle_comment, fw_handle_comment},
+ 	{wil_fw_type_data, fw_handle_data, fw_ignore_section},
+ 	{wil_fw_type_fill, fw_handle_fill, fw_ignore_section},
+ 	/* wil_fw_type_action */
+-- 
+2.14.3 (Apple Git-98)
+

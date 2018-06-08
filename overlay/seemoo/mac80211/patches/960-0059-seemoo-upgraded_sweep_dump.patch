@@ -1,0 +1,82 @@
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -1838,7 +1838,7 @@ static const struct file_operations fops
+ /*---------sweep dump---------*/
+ static int
+ sweep_dump_show(struct seq_file *s, void *data) {
+-	u32 i, p;
++	u32 i, p, swp_direction, swp_cdown, swp_sector;
+ 	sweep_dump_t sweep_dump;
+ 	sector_info_t feedback_info;
+ 	int snr_qdb, snr_db;
+@@ -1858,7 +1858,7 @@ sweep_dump_show(struct seq_file *s, void
+ 			for(i=0; i < SWEEP_DUMP_SIZE; i++) {
+ 				p = (sweep_dump.cur_pos + i) % SWEEP_DUMP_SIZE;
+ 				
+-				snr_qdb = sweep_dump.dump[p].snr;
++				/* snr_qdb = sweep_dump.dump[p].snr;
+ 				if (snr_qdb > 0xFF){
+ 					snr_qdb -= 0x200;
+ 				}
+@@ -1870,7 +1870,18 @@ sweep_dump_show(struct seq_file *s, void
+ 					sweep_dump.dump[p].sector_id, sweep_dump.dump[p].rssi, snr_qdb, snr_db,
+ 					sweep_dump.dump[p].macaddr[0], sweep_dump.dump[p].macaddr[1], sweep_dump.dump[p].macaddr[2],
+ 					sweep_dump.dump[p].macaddr[3], sweep_dump.dump[p].macaddr[4], sweep_dump.dump[p].macaddr[5] );
+-			
++
++				*/
++				swp_direction = sweep_dump.dump[p].swp[0] & 0x01;
++				swp_cdown = (sweep_dump.dump[p].swp[0] >> 1) + ((sweep_dump.dump[p].swp[1] & 0x03) << 7);
++				swp_sector = (sweep_dump.dump[p].swp[1] >> 2) + ((sweep_dump.dump[p].swp[2] & 0x03) << 6);
++				
++				seq_printf(s, " [%4d src: %02x:%02x:%02x:%02x:%02x:%02x sec: %3d cdown: %3d dir: %1d snr: %3d.%02d dB (0x%04x)]\n",
++					sweep_dump.dump[p].ctr,
++					sweep_dump.dump[p].src[0], sweep_dump.dump[p].src[1], sweep_dump.dump[p].src[2],
++					sweep_dump.dump[p].src[3], sweep_dump.dump[p].src[4], sweep_dump.dump[p].src[5],
++					swp_sector, swp_cdown, swp_direction, sweep_dump.dump[p].snr >> 4,
++					((sweep_dump.dump[p].snr & 0xf) * 100 + 8) >> 4, sweep_dump.dump[p].snr);
+ 			}
+ 			seq_printf(s, "}\n");
+         	} else {
+@@ -1914,7 +1925,7 @@ sweep_dump_cur_show(struct seq_file *s,
+                         seq_printf(s, "Sector Sweep Dump: {\n");
+ 
+ 			// Find the most actual sweep packets
+-			j = sweep_dump.cur_pos - 1;	
++			/*j = sweep_dump.cur_pos - 1;	
+ 			for(i=1; i < SWEEP_DUMP_SIZE; i++) {
+ 				p = (sweep_dump.cur_pos - i - 1) % SWEEP_DUMP_SIZE;
+ 				if (sweep_dump.dump[p].sector_id > sweep_dump.dump[(p+1) % SWEEP_DUMP_SIZE].sector_id)
+@@ -1937,7 +1948,7 @@ sweep_dump_cur_show(struct seq_file *s,
+                                         sweep_dump.dump[p].macaddr[0], sweep_dump.dump[p].macaddr[1], sweep_dump.dump[p].macaddr[2],
+                                         sweep_dump.dump[p].macaddr[3], sweep_dump.dump[p].macaddr[4], sweep_dump.dump[p].macaddr[5] );
+ 
+-			} 
++			} */
+                         seq_printf(s, "}\n");
+                 } else {
+                         return -1;
+--- a/drivers/net/wireless/ath/wil6210/sweep_info.h
++++ b/drivers/net/wireless/ath/wil6210/sweep_info.h
+@@ -12,12 +12,20 @@
+ 
+ #define SWEEP_DUMP_SIZE 256
+ 
+-typedef struct {
++/*typedef struct {
+     uint16_t sector_id;
+     int16_t snr;
+     uint32_t rssi;
+     uint8_t macaddr[6];
+     uint8_t flags[2];
++} sector_info_t; */
++
++typedef struct {
++        uint8_t src[6];
++        uint8_t swp[3];
++        int16_t snr;
++        uint16_t ctr;
++        uint16_t flags;
+ } sector_info_t;
+ 
+ typedef struct {

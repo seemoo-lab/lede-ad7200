@@ -1,0 +1,244 @@
+From 57ccdf55e82bbc7fc20b6db3747330f8573a8592 Mon Sep 17 00:00:00 2001
+From: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+Date: Tue, 5 Sep 2017 09:48:53 +0200
+Subject: [PATCH 55/57] seemoo: changed support for new firmware
+
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/debugfs.c    | 85 ++++++++++++----------------------------------------
+ wil6210/sweep_info.h | 77 +++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 96 insertions(+), 66 deletions(-)
+ create mode 100644 wil6210/sweep_info.h
+
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
+index 531f3ec..8348f9c 100644
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -24,6 +24,8 @@
+ #include "wmi.h"
+ #include "txrx.h"
+ #include "pmc.h"
++/* SEEMOO shared header between driver and fw */
++#include "sweep_info.h"
+ 
+ /* Nasty hack. Better have per device instances */
+ static u32 mem_addr;
+@@ -51,29 +53,6 @@ struct dbg_off {
+ #define MY_SECTOR_TABLE_SIZE 16
+ #define SWEEP_DUMP_SIZE 256
+ 
+-typedef struct {
+-        u32 sector_id;
+-        u32 crssi;
+-        s32 snr;
+-} sector_info_t;
+-
+-typedef struct {
+-	u32 ctr_valid;
+-	u32 ctr_overflow;
+-	u16 ctr_null;
+-	u16 ctr_missed;
+-	u8 reserved;
+-	u8 flag;
+-	u16 reserved2;
+-} sweep_stats_t;
+-
+-typedef struct {
+-        u32 cur_pos;
+-	u32 ctr_pkts;
+-	u32 ctr_swps;
+-        sector_info_t dump[SWEEP_DUMP_SIZE];
+-} sweep_dump_t;
+-
+ #define MY_CONSOLE_MAX_LEN 8192
+ u8 my_console_fw[MY_CONSOLE_MAX_LEN];
+ u8 my_console_uc[MY_CONSOLE_MAX_LEN];
+@@ -81,11 +60,6 @@ u32 my_console_fw_len;
+ u32 my_console_uc_len;
+ #define MY_CONSOLE_BASE_PTR_FW 0x8ffff0
+ #define MY_CONSOLE_BASE_PTR_UC 0x935ff4
+-#define MY_SWEEP_INFO_PTR 0x93D000
+-
+-#define PTR_SWEEP_STATS 0x9406FC
+-#define PTR_MEM_SWEEP_CUR_FEEDBACK 0x93D000
+-#define PTR_MEM_SWEEP_DUMP 0x93D018
+ 
+ struct wil6210_priv *my_glob_wil = NULL;
+ 
+@@ -1871,27 +1845,15 @@ sweep_dump_show(struct seq_file *s, void *data) {
+ 
+ 	if(my_glob_wil != NULL) {
+ 		if(test_bit(WMI_FW_CAPABILITY_MOD_FW, my_glob_wil->fw_capabilities)) {
+-			sweep_stats_t sweep_stats;
+-
+-			// Copy the statistics			
+-			wil_memcpy_fromio_32((void *) &sweep_stats, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_SWEEP_STATS), sizeof(sweep_stats_t));
+-			
+-			//Copy the Feedback Reports
+-                        wil_memcpy_fromio_32((void *) &feedback_info, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_CUR_FEEDBACK), 
+-				sizeof(sector_info_t));
+ 
+ 			// Copy the Sweep Dump
+                         wil_memcpy_fromio_32((void *) &sweep_dump, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_DUMP), sizeof(sweep_dump_t));
+ 	
+-			// Write results to output
+-			seq_printf(s, "Feedback: [sec: %2d, crssi: %6d, snr: %2d dB]\n",
+-				feedback_info.sector_id, feedback_info.crssi, feedback_info.snr);
+-
+-			seq_printf(s, "Counter: %d swps, %d pkts, %d miss, %d ok, %d ovfl, %d null\n", 
+-				sweep_dump.ctr_swps,  sweep_dump.ctr_pkts, sweep_stats.ctr_missed, sweep_stats.ctr_valid, 
+-				sweep_stats.ctr_overflow, sweep_stats.ctr_null);
++			seq_printf(s, "Counter: %d swps, %d pkts\n", 
++				sweep_dump.ctr_swps,  sweep_dump.ctr_pkts);
+ 			
+ 			seq_printf(s, "Sector Sweep Dump: {\n");
++		
+ 			// Iterate over all members in sweep dump
+ 			for(i=0; i < SWEEP_DUMP_SIZE; i++) {
+ 				p = (sweep_dump.cur_pos + i) % SWEEP_DUMP_SIZE;
+@@ -1902,10 +1864,12 @@ sweep_dump_show(struct seq_file *s, void *data) {
+ 				}
+ 				
+ 				// Determine the SNR in dB
+-				snr_db = (snr_qdb + 2) >> 2;	
+-				
+-				seq_printf(s, "  [sec: %2d crssi: %7d snr: %3d qdB (%2d dB)\n", 
+-					sweep_dump.dump[p].sector_id, sweep_dump.dump[p].crssi, snr_qdb, snr_db );
++				snr_db = (snr_qdb + 2) >> 2;					
++
++				seq_printf(s, "  [sec: %2d rssi: %7d snr: %3d qdB (%2d dB) src: %02x:%02x:%02x:%02x:%02x:%02x]\n", 
++					sweep_dump.dump[p].sector_id, sweep_dump.dump[p].rssi, snr_qdb, snr_db,
++					sweep_dump.dump[p].macaddr[0], sweep_dump.dump[p].macaddr[1], sweep_dump.dump[p].macaddr[2],
++					sweep_dump.dump[p].macaddr[3], sweep_dump.dump[p].macaddr[4], sweep_dump.dump[p].macaddr[5] );
+ 			
+ 			}
+ 			seq_printf(s, "}\n");
+@@ -1940,25 +1904,12 @@ sweep_dump_cur_show(struct seq_file *s, void *data) {
+ 
+         if(my_glob_wil != NULL) {
+                 if(test_bit(WMI_FW_CAPABILITY_MOD_FW, my_glob_wil->fw_capabilities)) {
+-                        sweep_stats_t sweep_stats;
+-
+-                        // Copy the statistics
+-                        wil_memcpy_fromio_32((void *) &sweep_stats, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_SWEEP_STATS), sizeof(sweep_stats_t));
+-
+-                        //Copy the Feedback Reports
+-                        wil_memcpy_fromio_32((void *) &feedback_info, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_CUR_FEEDBACK),
+-                                sizeof(sector_info_t));
+-
+-                        // Copy the Sweep Dump
++                                        
++			// Copy the Sweep Dump
+                         wil_memcpy_fromio_32((void *) &sweep_dump, (void * __force)my_glob_wil->csr + HOSTADDR(PTR_MEM_SWEEP_DUMP), sizeof(sweep_dump_t));
+ 
+-                        // Write results to output
+-                        seq_printf(s, "Feedback: [sec: %2d, crssi: %6d, snr: %2d dB]\n",
+-                                feedback_info.sector_id, feedback_info.crssi, feedback_info.snr);
+-
+-                        seq_printf(s, "Counter: %d swps, %d pkts, %d miss, %d ok, %d ovfl, %d null\n",
+-                                sweep_dump.ctr_swps,  sweep_dump.ctr_pkts, sweep_stats.ctr_missed, sweep_stats.ctr_valid,
+-                                sweep_stats.ctr_overflow, sweep_stats.ctr_null);
++                        seq_printf(s, "Counter: %d swps, %d pkts\n",
++                                sweep_dump.ctr_swps,  sweep_dump.ctr_pkts);
+ 
+                         seq_printf(s, "Sector Sweep Dump: {\n");
+ 
+@@ -1981,8 +1932,10 @@ sweep_dump_cur_show(struct seq_file *s, void *data) {
+                                 // Determine the SNR in dB
+                                 snr_db = (snr_qdb + 2) >> 2;
+ 
+-                                seq_printf(s, "  [sec: %2d crssi: %7d snr: %3d qdB (%2d dB)\n",
+-                                        sweep_dump.dump[p].sector_id, sweep_dump.dump[p].crssi, snr_qdb, snr_db );
++				seq_printf(s, "  [sec: %2d rssi: %7d snr: %3d qdB (%2d dB) src: %02x:%02x:%02x:%02x:%02x:%02x]\n",
++                                        sweep_dump.dump[p].sector_id, sweep_dump.dump[p].rssi, snr_qdb, snr_db,
++                                        sweep_dump.dump[p].macaddr[0], sweep_dump.dump[p].macaddr[1], sweep_dump.dump[p].macaddr[2],
++                                        sweep_dump.dump[p].macaddr[3], sweep_dump.dump[p].macaddr[4], sweep_dump.dump[p].macaddr[5] );
+ 
+ 			} 
+                         seq_printf(s, "}\n");
+diff --git a/drivers/net/wireless/ath/wil6210/sweep_info.h b/drivers/net/wireless/ath/wil6210/sweep_info.h
+new file mode 100644
+index 0000000..73d1c9f
+--- /dev/null
++++ b/drivers/net/wireless/ath/wil6210/sweep_info.h
+@@ -0,0 +1,77 @@
++#ifndef SWEEP_INFO_H_
++#define SWEEP_INFO_H_
++
++/* ATTENTION: This is a _shared_ header between the wil6210 driver and firmware
++ * Both driver and firmware do not share every entry in here
++ * but we still keep everything in a single header file for now
++ */
++
++// ---------------------------------------------------------------------------
++// Shared between driver and firmware
++// ---------------------------------------------------------------------------
++
++#define SWEEP_DUMP_SIZE 256
++
++typedef struct {
++    uint16_t sector_id;
++    int16_t snr;
++    uint32_t rssi;
++    uint8_t macaddr[6];
++    uint8_t flags[2];
++} sector_info_t;
++
++typedef struct {
++    uint32_t cur_pos;
++    uint32_t ctr_pkts;
++    uint32_t ctr_swps;
++    sector_info_t dump[SWEEP_DUMP_SIZE];
++} sweep_dump_t;
++
++#define PTR_MEM_SWEEP_CUR_FEEDBACK 0x93D000
++#define PTR_MEM_SWEEP_DUMP 0x93D018
++
++// ---------------------------------------------------------------------------
++// Used only by firmware
++// ---------------------------------------------------------------------------
++
++#define PTR_SEL_SWEEP_SECTOR_INFO 0x800F1C
++// #define PTR_CUR_SWEEP_SECTOR_INFO 0x800F9C
++#define PTR_CUR_SWEEP_SECTOR_INFO 0x801038
++
++#define PTR_CUR_FRAME_BUFFER 0x804010
++
++typedef struct{
++        uint8_t macaddr [6];
++        uint16_t sector_id;
++        uint16_t snr;
++        uint8_t reserved[2];
++} custom_sweep_feedback_t;
++
++typedef struct {
++   // bool force_sector;
++   // bool force_rssi;
++   // uint16_t sector_id;
++   // int32_t snr;
++   // uint32_t crrsi;
++    custom_sweep_feedback_t sweep_feedback [8];
++} sweep_overwrite_t;
++
++#define PTR_MEM_SWEEP_OVERWRITE 0x93D00C
++
++// ---------------------------------------------------------------------------
++// Used only by driver
++// ---------------------------------------------------------------------------
++
++#define PTR_SWEEP_STATS 0x9406FC
++
++typedef struct {
++    uint32_t ctr_valid;
++    uint32_t ctr_overflow;
++    uint16_t ctr_null;
++    uint16_t ctr_missed;
++    uint8_t reserved;
++    uint8_t flag;
++    uint16_t reserved2;
++} sweep_stats_t;
++
++#endif /* SWEEP_INFO_H_ */
+-- 
+2.14.3 (Apple Git-98)
+
