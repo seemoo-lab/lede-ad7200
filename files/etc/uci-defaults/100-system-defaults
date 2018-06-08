@@ -1,0 +1,27 @@
+#!/bin/sh
+# Configure system defaults
+
+chmod 600 /etc/dropbear/authorized_keys
+
+/etc/init.d/odhcpd disable
+/etc/init.d/firewall disable
+
+ADDR=$(cat /sys/class/net/eth1/address)
+MYHOSTNAME=$(echo T${ADDR:9:9} | sed 's/://g')
+
+# Set Host configuration 
+uci -q batch <<-EOT
+
+  set system.@system[0].hostname=$MYHOSTNAME
+
+  # Ignore DHCPD on LAN
+  set dhcp.lan.ignore=1
+  
+  commit dhcp
+  commit
+
+  EOT
+
+wifi
+/etc/init.d/network restart
+exit 0
