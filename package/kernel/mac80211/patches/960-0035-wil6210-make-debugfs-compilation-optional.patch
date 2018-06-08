@@ -1,0 +1,73 @@
+From d2def94f29d3d4cb4316ae6f12b396ac69615aad Mon Sep 17 00:00:00 2001
+From: Gidon Studinski <qca_gidons@qca.qualcomm.com>
+Date: Mon, 28 Aug 2017 22:18:42 +0300
+Subject: [PATCH 35/57] wil6210: make debugfs compilation optional
+
+Since debugfs is a kernel configuration option, enable the driver to
+compile without debugfs.
+
+Signed-off-by: Gidon Studinski <qca_gidons@qca.qualcomm.com>
+Signed-off-by: Hamad Kadmany <qca_hkadmany@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/Kconfig   | 12 ++++++++++++
+ wil6210/Makefile  |  2 +-
+ wil6210/wil6210.h |  6 ++++++
+ 3 files changed, 19 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/Kconfig b/drivers/net/wireless/ath/wil6210/Kconfig
+index 7755b56..336a11a 100644
+--- a/drivers/net/wireless/ath/wil6210/Kconfig
++++ b/drivers/net/wireless/ath/wil6210/Kconfig
+@@ -41,3 +41,15 @@ config WIL6210_TRACING
+ 	  option if you are interested in debugging the driver.
+ 
+ 	  If unsure, say Y to make it easier to debug problems.
++
++config WIL6210_DEBUGFS
++	bool "wil6210 debugfs support"
++	depends on WIL6210
++	depends on DEBUG_FS
++	default y
++	---help---
++	  Say Y here to enable wil6210 debugfs support, using the
++	  kernel debugfs infrastructure. Select this
++	  option if you are interested in debugging the driver.
++
++	  If unsure, say Y to make it easier to debug problems.
+diff --git a/drivers/net/wireless/ath/wil6210/Makefile b/drivers/net/wireless/ath/wil6210/Makefile
+index 76267d4..8a19dbc 100644
+--- a/drivers/net/wireless/ath/wil6210/Makefile
++++ b/drivers/net/wireless/ath/wil6210/Makefile
+@@ -4,7 +4,7 @@ wil6210-y := main.o
+ wil6210-y += netdev.o
+ wil6210-y += cfg80211.o
+ wil6210-y += pcie_bus.o
+-wil6210-y += debugfs.o
++wil6210-$(CONFIG_WIL6210_DEBUGFS) += debugfs.o
+ wil6210-y += wmi.o
+ wil6210-y += interrupt.o
+ wil6210-y += txrx.o
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
+index d1a11ba..e32cecb 100644
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
+@@ -939,8 +939,14 @@ int wil_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 			 struct cfg80211_mgmt_tx_params *params,
+ 			 u64 *cookie);
+ 
++#if defined(CONFIG_WIL6210_DEBUGFS)
+ int wil6210_debugfs_init(struct wil6210_priv *wil);
+ void wil6210_debugfs_remove(struct wil6210_priv *wil);
++#else
++static inline int wil6210_debugfs_init(struct wil6210_priv *wil) { return 0; }
++static inline void wil6210_debugfs_remove(struct wil6210_priv *wil) {}
++#endif
++
+ int wil_cid_fill_sinfo(struct wil6210_priv *wil, int cid,
+ 		       struct station_info *sinfo);
+ 
+-- 
+2.14.3 (Apple Git-98)
+

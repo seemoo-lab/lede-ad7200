@@ -1,0 +1,151 @@
+From bbdb5a2be1886fe2a7d2991ef488ed5a9d5a940e Mon Sep 17 00:00:00 2001
+From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Date: Thu, 3 Aug 2017 22:08:15 +0300
+Subject: [PATCH 27/57] wil6210: support FW RSSI reporting
+
+New FW supports reporting RSSI signal in dBm.
+Report RSSI to kernel in case FW has this capability.
+
+Signed-off-by: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/cfg80211.c | 12 ++++++++----
+ wil6210/debugfs.c  |  2 ++
+ wil6210/pcie_bus.c |  3 +++
+ wil6210/wmi.c      |  9 ++++++---
+ wil6210/wmi.h      |  6 ++++--
+ 5 files changed, 23 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
+index 201e0f3..1c1dddd 100644
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
+@@ -272,12 +272,12 @@ int wil_cid_fill_sinfo(struct wil6210_priv *wil, int cid,
+ 
+ 	wil_dbg_wmi(wil, "Link status for CID %d: {\n"
+ 		    "  MCS %d TSF 0x%016llx\n"
+-		    "  BF status 0x%08x SNR 0x%08x SQI %d%%\n"
++		    "  BF status 0x%08x RSSI %d SQI %d%%\n"
+ 		    "  Tx Tpt %d goodput %d Rx goodput %d\n"
+ 		    "  Sectors(rx:tx) my %d:%d peer %d:%d\n""}\n",
+ 		    cid, le16_to_cpu(reply.evt.bf_mcs),
+ 		    le64_to_cpu(reply.evt.tsf), reply.evt.status,
+-		    le32_to_cpu(reply.evt.snr_val),
++		    reply.evt.rssi,
+ 		    reply.evt.sqi,
+ 		    le32_to_cpu(reply.evt.tx_tpt),
+ 		    le32_to_cpu(reply.evt.tx_goodput),
+@@ -311,7 +311,11 @@ int wil_cid_fill_sinfo(struct wil6210_priv *wil, int cid,
+ 
+ 	if (test_bit(wil_status_fwconnected, wil->status)) {
+ 		sinfo->filled |= BIT(NL80211_STA_INFO_SIGNAL);
+-		sinfo->signal = reply.evt.sqi;
++		if (test_bit(WMI_FW_CAPABILITY_RSSI_REPORTING,
++			     wil->fw_capabilities))
++			sinfo->signal = reply.evt.rssi;
++		else
++			sinfo->signal = reply.evt.sqi;
+ 	}
+ 
+ 	return rc;
+@@ -1794,7 +1798,7 @@ static void wil_wiphy_init(struct wiphy *wiphy)
+ 
+ 	wiphy->bands[NL80211_BAND_60GHZ] = &wil_band_60ghz;
+ 
+-	/* TODO: figure this out */
++	/* may change after reading FW capabilities */
+ 	wiphy->signal_type = CFG80211_SIGNAL_TYPE_UNSPEC;
+ 
+ 	wiphy->cipher_suites = wil_cipher_suites;
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
+index 0ac657d..a046699 100644
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -1017,6 +1017,7 @@ static int wil_bf_debugfs_show(struct seq_file *s, void *data)
+ 			   "  TSF = 0x%016llx\n"
+ 			   "  TxMCS = %2d TxTpt = %4d\n"
+ 			   "  SQI = %4d\n"
++			   "  RSSI = %4d\n"
+ 			   "  Status = 0x%08x %s\n"
+ 			   "  Sectors(rx:tx) my %2d:%2d peer %2d:%2d\n"
+ 			   "  Goodput(rx:tx) %4d:%4d\n"
+@@ -1026,6 +1027,7 @@ static int wil_bf_debugfs_show(struct seq_file *s, void *data)
+ 			   le16_to_cpu(reply.evt.bf_mcs),
+ 			   le32_to_cpu(reply.evt.tx_tpt),
+ 			   reply.evt.sqi,
++			   reply.evt.rssi,
+ 			   status, wil_bfstatus_str(status),
+ 			   le16_to_cpu(reply.evt.my_rx_sector),
+ 			   le16_to_cpu(reply.evt.my_tx_sector),
+diff --git a/drivers/net/wireless/ath/wil6210/pcie_bus.c b/drivers/net/wireless/ath/wil6210/pcie_bus.c
+index 180051b..2a801e2 100644
+--- a/drivers/net/wireless/ath/wil6210/pcie_bus.c
++++ b/drivers/net/wireless/ath/wil6210/pcie_bus.c
+@@ -84,6 +84,9 @@ void wil_set_capabilities(struct wil6210_priv *wil)
+ 
+ 	/* extract FW capabilities from file without loading the FW */
+ 	wil_request_firmware(wil, wil->wil_fw_name, false);
++
++	if (test_bit(WMI_FW_CAPABILITY_RSSI_REPORTING, wil->fw_capabilities))
++		wil_to_wiphy(wil)->signal_type = CFG80211_SIGNAL_TYPE_MBM;
+ }
+ 
+ void wil_disable_irq(struct wil6210_priv *wil)
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.c b/drivers/net/wireless/ath/wil6210/wmi.c
+index 26cf722..b0f2181 100644
+--- a/drivers/net/wireless/ath/wil6210/wmi.c
++++ b/drivers/net/wireless/ath/wil6210/wmi.c
+@@ -381,12 +381,15 @@ static void wmi_evt_rx_mgmt(struct wil6210_priv *wil, int id, void *d, int len)
+ 	ch_no = data->info.channel + 1;
+ 	freq = ieee80211_channel_to_frequency(ch_no, NL80211_BAND_60GHZ);
+ 	channel = ieee80211_get_channel(wiphy, freq);
+-	signal = data->info.sqi;
++	if (test_bit(WMI_FW_CAPABILITY_RSSI_REPORTING, wil->fw_capabilities))
++		signal = 100 * data->info.rssi;
++	else
++		signal = data->info.sqi;
+ 	d_status = le16_to_cpu(data->info.status);
+ 	fc = rx_mgmt_frame->frame_control;
+ 
+-	wil_dbg_wmi(wil, "MGMT Rx: channel %d MCS %d SNR %d SQI %d%%\n",
+-		    data->info.channel, data->info.mcs, data->info.snr,
++	wil_dbg_wmi(wil, "MGMT Rx: channel %d MCS %d RSSI %d SQI %d%%\n",
++		    data->info.channel, data->info.mcs, data->info.rssi,
+ 		    data->info.sqi);
+ 	wil_dbg_wmi(wil, "status 0x%04x len %d fc 0x%04x\n", d_status, d_len,
+ 		    le16_to_cpu(fc));
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.h b/drivers/net/wireless/ath/wil6210/wmi.h
+index 256f63c..4e31c2f 100644
+--- a/drivers/net/wireless/ath/wil6210/wmi.h
++++ b/drivers/net/wireless/ath/wil6210/wmi.h
+@@ -60,6 +60,7 @@ enum wmi_fw_capability {
+ 	WMI_FW_CAPABILITY_WMI_ONLY		= 5,
+ 	WMI_FW_CAPABILITY_THERMAL_THROTTLING	= 7,
+ 	WMI_FW_CAPABILITY_D3_SUSPEND		= 8,
++	WMI_FW_CAPABILITY_RSSI_REPORTING	= 12,
+ 	WMI_FW_CAPABILITY_MAX,
+ };
+ 
+@@ -1306,7 +1307,8 @@ struct wmi_notify_req_done_event {
+ 	/* beamforming status, 0: fail; 1: OK; 2: retrying */
+ 	__le32 status;
+ 	__le64 tsf;
+-	__le32 snr_val;
++	s8 rssi;
++	u8 reserved0[3];
+ 	__le32 tx_tpt;
+ 	__le32 tx_goodput;
+ 	__le32 rx_goodput;
+@@ -1602,7 +1604,7 @@ struct wmi_get_ssid_event {
+ /* wmi_rx_mgmt_info */
+ struct wmi_rx_mgmt_info {
+ 	u8 mcs;
+-	s8 snr;
++	s8 rssi;
+ 	u8 range;
+ 	u8 sqi;
+ 	__le16 stype;
+-- 
+2.14.3 (Apple Git-98)
+

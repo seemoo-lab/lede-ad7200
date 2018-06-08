@@ -1,0 +1,32 @@
+From 5011a6f2807d832bd552b6b17ea8702487392141 Mon Sep 17 00:00:00 2001
+From: Hamad Kadmany <qca_hkadmany@qca.qualcomm.com>
+Date: Wed, 5 Apr 2017 14:58:10 +0300
+Subject: [PATCH 16/57] wil6210: fix check for sparrow D0 FW file
+
+Driver fails to load FW for sparrow D0 devices in some cases.
+Fix this by returning correct value from wil_fw_verify_file_exists
+when D0 FW file is not detected for any reason.
+
+Signed-off-by: Hamad Kadmany <qca_hkadmany@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/fw_inc.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/fw_inc.c b/drivers/net/wireless/ath/wil6210/fw_inc.c
+index f490158..e01acac 100644
+--- a/drivers/net/wireless/ath/wil6210/fw_inc.c
++++ b/drivers/net/wireless/ath/wil6210/fw_inc.c
+@@ -554,5 +554,7 @@ bool wil_fw_verify_file_exists(struct wil6210_priv *wil, const char *name)
+ 	rc = request_firmware(&fw, name, wil_to_dev(wil));
+ 	if (!rc)
+ 		release_firmware(fw);
+-	return rc != -ENOENT;
++	else
++		wil_dbg_fw(wil, "<%s> not available: %d\n", name, rc);
++	return !rc;
+ }
+-- 
+2.14.3 (Apple Git-98)
+

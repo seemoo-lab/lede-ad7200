@@ -1,0 +1,37 @@
+From 128c425bd42bf97fa03ea43a71034813b8d293c5 Mon Sep 17 00:00:00 2001
+From: Hamad Kadmany <qca_hkadmany@qca.qualcomm.com>
+Date: Tue, 14 Nov 2017 15:25:36 +0200
+Subject: [PATCH 44/57] wil6210: abort properly in cfg suspend
+
+On-going operations were not aborted properly
+and required locks were not taken.
+
+Signed-off-by: Hamad Kadmany <qca_hkadmany@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/cfg80211.c | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
+index b7d1ff8..de9f1ad 100644
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
+@@ -1727,9 +1727,12 @@ static int wil_cfg80211_suspend(struct wiphy *wiphy,
+ 
+ 	wil_dbg_pm(wil, "suspending\n");
+ 
+-	wil_p2p_stop_discovery(wil);
+-
++	mutex_lock(&wil->mutex);
++	mutex_lock(&wil->p2p_wdev_mutex);
++	wil_p2p_stop_radio_operations(wil);
+ 	wil_abort_scan(wil, true);
++	mutex_unlock(&wil->p2p_wdev_mutex);
++	mutex_unlock(&wil->mutex);
+ 
+ out:
+ 	return rc;
+-- 
+2.14.3 (Apple Git-98)
+

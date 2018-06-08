@@ -1,0 +1,40 @@
+From 9d3232374e9a50618af423632abd68c73b7538a2 Mon Sep 17 00:00:00 2001
+From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Date: Wed, 5 Apr 2017 14:58:13 +0300
+Subject: [PATCH 19/57] wil6210: fix array out of bounds access in pmc
+
+Array index 'i' is used before limits check.
+Fix this by doing limits check first.
+
+Signed-off-by: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/pmc.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/pmc.c b/drivers/net/wireless/ath/wil6210/pmc.c
+index 3ff4f4c..c201744 100644
+--- a/drivers/net/wireless/ath/wil6210/pmc.c
++++ b/drivers/net/wireless/ath/wil6210/pmc.c
+@@ -185,7 +185,7 @@ void wil_pmc_alloc(struct wil6210_priv *wil,
+ 
+ release_pmc_skbs:
+ 	wil_err(wil, "exit on error: Releasing skbs...\n");
+-	for (i = 0; pmc->descriptors[i].va && i < num_descriptors; i++) {
++	for (i = 0; i < num_descriptors && pmc->descriptors[i].va; i++) {
+ 		dma_free_coherent(dev,
+ 				  descriptor_size,
+ 				  pmc->descriptors[i].va,
+@@ -268,7 +268,7 @@ void wil_pmc_free(struct wil6210_priv *wil, int send_pmc_cmd)
+ 		int i;
+ 
+ 		for (i = 0;
+-		     pmc->descriptors[i].va && i < pmc->num_descriptors; i++) {
++		     i < pmc->num_descriptors && pmc->descriptors[i].va; i++) {
+ 			dma_free_coherent(dev,
+ 					  pmc->descriptor_size,
+ 					  pmc->descriptors[i].va,
+-- 
+2.14.3 (Apple Git-98)
+

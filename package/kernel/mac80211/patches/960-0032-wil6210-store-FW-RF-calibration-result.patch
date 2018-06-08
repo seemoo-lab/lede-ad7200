@@ -1,0 +1,92 @@
+From f2951b25a00f30c3bf4ce11d39957d2b474bf1c7 Mon Sep 17 00:00:00 2001
+From: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Date: Thu, 3 Aug 2017 22:08:20 +0300
+Subject: [PATCH 32/57] wil6210: store FW RF calibration result
+
+Store initial FW RF calibration result in driver. Set this calibration
+result back to FW after each FW reset in order to avoid future calibration
+procedures.
+
+Signed-off-by: Dedy Lansky <qca_dlansky@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/main.c    | 6 ++++++
+ wil6210/wil6210.h | 6 ++++++
+ wil6210/wmi.c     | 5 +++++
+ wil6210/wmi.h     | 2 ++
+ 4 files changed, 19 insertions(+)
+
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
+index b1e2814..b89d017 100644
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
+@@ -1034,6 +1034,12 @@ int wil_reset(struct wil6210_priv *wil, bool load_fw)
+ 		wil_s(wil, RGF_CAF_ICR + offsetof(struct RGF_ICR, ICR), 0);
+ 		wil_w(wil, RGF_CAF_ICR + offsetof(struct RGF_ICR, IMV), ~0);
+ 
++		if (wil->fw_calib_result > 0) {
++			__le32 val = cpu_to_le32(wil->fw_calib_result |
++						 (CALIB_RESULT_SIGNATURE << 8));
++			wil_w(wil, RGF_USER_FW_CALIB_RESULT, (u32 __force)val);
++		}
++
+ 		wil_release_cpu(wil);
+ 	}
+ 
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
+index 517a3f4..addb7cd 100644
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
+@@ -171,6 +171,10 @@ struct RGF_ICR {
+ #define RGF_USER_USER_SCRATCH_PAD	(0x8802bc)
+ #define RGF_USER_BL			(0x880A3C) /* Boot Loader */
+ #define RGF_USER_FW_REV_ID		(0x880a8c) /* chip revision */
++#define RGF_USER_FW_CALIB_RESULT	(0x880a90) /* b0-7:result
++						    * b8-15:signature
++						    */
++	#define CALIB_RESULT_SIGNATURE	(0x11)
+ #define RGF_USER_CLKS_CTL_0		(0x880abc)
+ 	#define BIT_USER_CLKS_CAR_AHB_SW_SEL	BIT(1) /* ref clk/PLL */
+ 	#define BIT_USER_CLKS_RST_PWGD	BIT(11) /* reset on "power good" */
+@@ -723,6 +727,8 @@ struct wil6210_priv {
+ 
+ 	enum wmi_ps_profile_type ps_profile;
+ 
++	int fw_calib_result;
++
+ #ifdef CONFIG_PM
+ #ifdef CONFIG_PM_SLEEP
+ 	struct notifier_block pm_notify;
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.c b/drivers/net/wireless/ath/wil6210/wmi.c
+index b0f2181..06c5180 100644
+--- a/drivers/net/wireless/ath/wil6210/wmi.c
++++ b/drivers/net/wireless/ath/wil6210/wmi.c
+@@ -344,6 +344,11 @@ static void wmi_evt_ready(struct wil6210_priv *wil, int id, void *d, int len)
+ 	strlcpy(wdev->wiphy->fw_version, wil->fw_version,
+ 		sizeof(wdev->wiphy->fw_version));
+ 
++	if (len > offsetof(struct wmi_ready_event, rfc_read_calib_result)) {
++		wil_dbg_wmi(wil, "rfc calibration result %d\n",
++			    evt->rfc_read_calib_result);
++		wil->fw_calib_result = evt->rfc_read_calib_result;
++	}
+ 	wil_set_recovery_state(wil, fw_recovery_idle);
+ 	set_bit(wil_status_fwready, wil->status);
+ 	/* let the reset sequence continue */
+diff --git a/drivers/net/wireless/ath/wil6210/wmi.h b/drivers/net/wireless/ath/wil6210/wmi.h
+index 4e31c2f..1b426d7 100644
+--- a/drivers/net/wireless/ath/wil6210/wmi.h
++++ b/drivers/net/wireless/ath/wil6210/wmi.h
+@@ -1300,6 +1300,8 @@ struct wmi_ready_event {
+ 	/* enum wmi_phy_capability */
+ 	u8 phy_capability;
+ 	u8 numof_additional_mids;
++	u8 rfc_read_calib_result;
++	u8 reserved[3];
+ } __packed;
+ 
+ /* WMI_NOTIFY_REQ_DONE_EVENTID */
+-- 
+2.14.3 (Apple Git-98)
+

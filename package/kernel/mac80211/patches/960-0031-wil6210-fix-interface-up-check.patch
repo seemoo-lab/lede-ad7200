@@ -1,0 +1,58 @@
+From 8ad6f4d093428c5325b8efd12d69af76d3dbe30e Mon Sep 17 00:00:00 2001
+From: Hamad Kadmany <qca_hkadmany@qca.qualcomm.com>
+Date: Thu, 3 Aug 2017 22:08:19 +0300
+Subject: [PATCH 31/57] wil6210: fix interface-up check
+
+While wil_open is executed, any call to netif_running
+would return a success. In case there are failures
+within wil_open, should not treat the device as if it
+is already opened in relevant functions (like FW recovery
+and runtime suspend check).
+
+Fix that by checking the device up flag instead.
+
+Signed-off-by: Hamad Kadmany <qca_hkadmany@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/main.c | 3 ++-
+ wil6210/pm.c   | 3 ++-
+ 2 files changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
+index 8968c2c..b1e2814 100644
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
+@@ -394,10 +394,11 @@ static void wil_fw_error_worker(struct work_struct *work)
+ 	struct wil6210_priv *wil = container_of(work, struct wil6210_priv,
+ 						fw_error_worker);
+ 	struct wireless_dev *wdev = wil->wdev;
++	struct net_device *ndev = wil_to_ndev(wil);
+ 
+ 	wil_dbg_misc(wil, "fw error worker\n");
+ 
+-	if (!netif_running(wil_to_ndev(wil))) {
++	if (!(ndev->flags & IFF_UP)) {
+ 		wil_info(wil, "No recovery - interface is down\n");
+ 		return;
+ 	}
+diff --git a/drivers/net/wireless/ath/wil6210/pm.c b/drivers/net/wireless/ath/wil6210/pm.c
+index 820ed17..8f5d1b4 100644
+--- a/drivers/net/wireless/ath/wil6210/pm.c
++++ b/drivers/net/wireless/ath/wil6210/pm.c
+@@ -21,10 +21,11 @@ int wil_can_suspend(struct wil6210_priv *wil, bool is_runtime)
+ {
+ 	int rc = 0;
+ 	struct wireless_dev *wdev = wil->wdev;
++	struct net_device *ndev = wil_to_ndev(wil);
+ 
+ 	wil_dbg_pm(wil, "can_suspend: %s\n", is_runtime ? "runtime" : "system");
+ 
+-	if (!netif_running(wil_to_ndev(wil))) {
++	if (!(ndev->flags & IFF_UP)) {
+ 		/* can always sleep when down */
+ 		wil_dbg_pm(wil, "Interface is down\n");
+ 		goto out;
+-- 
+2.14.3 (Apple Git-98)
+

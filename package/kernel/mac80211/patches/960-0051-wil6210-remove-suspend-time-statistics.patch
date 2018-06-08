@@ -1,0 +1,147 @@
+From 6c3df2aaa18d797e286b3e27253c764853ccc71e Mon Sep 17 00:00:00 2001
+From: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
+Date: Tue, 14 Nov 2017 15:25:43 +0200
+Subject: [PATCH 51/57] wil6210: remove suspend time statistics
+
+Currently suspend time statistics are showed through debugfs.
+Remove time statistics in suspend state since the timing may
+not be accurate in that state.
+
+Signed-off-by: Lazar Alexei <qca_ailizaro@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/debugfs.c | 17 ++---------------
+ wil6210/main.c    |  1 -
+ wil6210/pm.c      | 20 ++------------------
+ wil6210/wil6210.h |  5 -----
+ 4 files changed, 4 insertions(+), 39 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
+index a077866..20d8384 100644
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -1677,8 +1677,6 @@ static ssize_t wil_write_suspend_stats(struct file *file,
+ 	struct wil6210_priv *wil = file->private_data;
+ 
+ 	memset(&wil->suspend_stats, 0, sizeof(wil->suspend_stats));
+-	wil->suspend_stats.min_suspend_time = ULONG_MAX;
+-	wil->suspend_stats.collection_start = ktime_get();
+ 
+ 	return len;
+ }
+@@ -1690,27 +1688,18 @@ static ssize_t wil_read_suspend_stats(struct file *file,
+ 	struct wil6210_priv *wil = file->private_data;
+ 	static char text[400];
+ 	int n;
+-	unsigned long long stats_collection_time =
+-		ktime_to_us(ktime_sub(ktime_get(),
+-				      wil->suspend_stats.collection_start));
+ 
+ 	n = snprintf(text, sizeof(text),
+ 		     "Suspend statistics:\n"
+ 		     "successful suspends:%ld failed suspends:%ld\n"
+ 		     "successful resumes:%ld failed resumes:%ld\n"
+-		     "rejected by host:%ld rejected by device:%ld\n"
+-		     "total suspend time:%lld min suspend time:%lld\n"
+-		     "max suspend time:%lld stats collection time: %lld\n",
++		     "rejected by host:%ld rejected by device:%ld\n",
+ 		     wil->suspend_stats.successful_suspends,
+ 		     wil->suspend_stats.failed_suspends,
+ 		     wil->suspend_stats.successful_resumes,
+ 		     wil->suspend_stats.failed_resumes,
+ 		     wil->suspend_stats.rejected_by_host,
+-		     wil->suspend_stats.rejected_by_device,
+-		     wil->suspend_stats.total_suspend_time,
+-		     wil->suspend_stats.min_suspend_time,
+-		     wil->suspend_stats.max_suspend_time,
+-		     stats_collection_time);
++		     wil->suspend_stats.rejected_by_device);
+ 
+ 	n = min_t(int, n, sizeof(text));
+ 
+@@ -1882,8 +1871,6 @@ int wil6210_debugfs_init(struct wil6210_priv *wil)
+ 
+ 	wil6210_debugfs_create_ITR_CNT(wil, dbg);
+ 
+-	wil->suspend_stats.collection_start = ktime_get();
+-
+ 	return 0;
+ }
+ 
+diff --git a/drivers/net/wireless/ath/wil6210/main.c b/drivers/net/wireless/ath/wil6210/main.c
+index ad1f9f8..9b3726d 100644
+--- a/drivers/net/wireless/ath/wil6210/main.c
++++ b/drivers/net/wireless/ath/wil6210/main.c
+@@ -580,7 +580,6 @@ int wil_priv_init(struct wil6210_priv *wil)
+ 	wil->wakeup_trigger = WMI_WAKEUP_TRIGGER_UCAST |
+ 			      WMI_WAKEUP_TRIGGER_BCAST;
+ 	memset(&wil->suspend_stats, 0, sizeof(wil->suspend_stats));
+-	wil->suspend_stats.min_suspend_time = ULONG_MAX;
+ 	wil->vring_idle_trsh = 16;
+ 
+ 	return 0;
+diff --git a/drivers/net/wireless/ath/wil6210/pm.c b/drivers/net/wireless/ath/wil6210/pm.c
+index 6fd5420..9fba237 100644
+--- a/drivers/net/wireless/ath/wil6210/pm.c
++++ b/drivers/net/wireless/ath/wil6210/pm.c
+@@ -323,16 +323,12 @@ int wil_suspend(struct wil6210_priv *wil, bool is_runtime, bool keep_radio_on)
+ 	wil_dbg_pm(wil, "suspend: %s => %d\n",
+ 		   is_runtime ? "runtime" : "system", rc);
+ 
+-	if (!rc)
+-		wil->suspend_stats.suspend_start_time = ktime_get();
+-
+ 	return rc;
+ }
+ 
+ int wil_resume(struct wil6210_priv *wil, bool is_runtime, bool keep_radio_on)
+ {
+ 	int rc = 0;
+-	unsigned long long suspend_time_usec = 0;
+ 
+ 	wil_dbg_pm(wil, "resume: %s\n", is_runtime ? "runtime" : "system");
+ 
+@@ -350,21 +346,9 @@ int wil_resume(struct wil6210_priv *wil, bool is_runtime, bool keep_radio_on)
+ 	else
+ 		rc = wil_resume_radio_off(wil);
+ 
+-	if (rc)
+-		goto out;
+-
+-	suspend_time_usec =
+-		ktime_to_us(ktime_sub(ktime_get(),
+-				      wil->suspend_stats.suspend_start_time));
+-	wil->suspend_stats.total_suspend_time += suspend_time_usec;
+-	if (suspend_time_usec < wil->suspend_stats.min_suspend_time)
+-		wil->suspend_stats.min_suspend_time = suspend_time_usec;
+-	if (suspend_time_usec > wil->suspend_stats.max_suspend_time)
+-		wil->suspend_stats.max_suspend_time = suspend_time_usec;
+-
+ out:
+-	wil_dbg_pm(wil, "resume: %s => %d, suspend time %lld usec\n",
+-		   is_runtime ? "runtime" : "system", rc, suspend_time_usec);
++	wil_dbg_pm(wil, "resume: %s => %d\n", is_runtime ? "runtime" : "system",
++		   rc);
+ 	return rc;
+ }
+ 
+diff --git a/drivers/net/wireless/ath/wil6210/wil6210.h b/drivers/net/wireless/ath/wil6210/wil6210.h
+index 40d5bec..af82a54 100644
+--- a/drivers/net/wireless/ath/wil6210/wil6210.h
++++ b/drivers/net/wireless/ath/wil6210/wil6210.h
+@@ -89,11 +89,6 @@ struct wil_suspend_stats {
+ 	unsigned long failed_resumes;
+ 	unsigned long rejected_by_device;
+ 	unsigned long rejected_by_host;
+-	unsigned long long total_suspend_time;
+-	unsigned long long min_suspend_time;
+-	unsigned long long max_suspend_time;
+-	ktime_t collection_start;
+-	ktime_t suspend_start_time;
+ };
+ 
+ /* Calculate MAC buffer size for the firmware. It includes all overhead,
+-- 
+2.14.3 (Apple Git-98)
+

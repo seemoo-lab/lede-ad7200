@@ -1,0 +1,57 @@
+From 91e901b04d59f7268a281d595f0da0df26005322 Mon Sep 17 00:00:00 2001
+From: Lior David <qca_liord@qca.qualcomm.com>
+Date: Tue, 21 Feb 2017 16:32:00 +0200
+Subject: [PATCH 01/57] wil6210: do not start regular scan on stopped p2p
+ device
+
+The driver should not allow starting any type of scan on a stopped
+P2P device. Current implementation only checked social scan.
+
+Signed-off-by: Lior David <qca_liord@qca.qualcomm.com>
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/cfg80211.c | 21 +++++++++++----------
+ 1 file changed, 11 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
+index e25e78e..0251b53 100644
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
+@@ -389,22 +389,23 @@ static int wil_cfg80211_scan(struct wiphy *wiphy,
+ 	}
+ 	mutex_unlock(&wil->p2p_wdev_mutex);
+ 
+-	/* social scan on P2P_DEVICE is handled as p2p search */
+-	if (wdev->iftype == NL80211_IFTYPE_P2P_DEVICE &&
+-	    wil_p2p_is_social_scan(request)) {
++	if (wdev->iftype == NL80211_IFTYPE_P2P_DEVICE) {
+ 		if (!wil->p2p.p2p_dev_started) {
+ 			wil_err(wil, "P2P search requested on stopped P2P device\n");
+ 			rc = -EIO;
+ 			goto out;
+ 		}
+-		wil->scan_request = request;
+-		wil->radio_wdev = wdev;
+-		rc = wil_p2p_search(wil, request);
+-		if (rc) {
+-			wil->radio_wdev = wil_to_wdev(wil);
+-			wil->scan_request = NULL;
++		/* social scan on P2P_DEVICE is handled as p2p search */
++		if (wil_p2p_is_social_scan(request)) {
++			wil->scan_request = request;
++			wil->radio_wdev = wdev;
++			rc = wil_p2p_search(wil, request);
++			if (rc) {
++				wil->radio_wdev = wil_to_wdev(wil);
++				wil->scan_request = NULL;
++			}
++			goto out;
+ 		}
+-		goto out;
+ 	}
+ 
+ 	(void)wil_p2p_stop_discovery(wil);
+-- 
+2.14.3 (Apple Git-98)
+

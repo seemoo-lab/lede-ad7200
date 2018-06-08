@@ -1,0 +1,33 @@
+From 75600d7fbe7a4089db48532e6f2df96f7e7684b0 Mon Sep 17 00:00:00 2001
+From: Maya Erez <qca_merez@qca.qualcomm.com>
+Date: Thu, 3 Aug 2017 22:08:16 +0300
+Subject: [PATCH 28/57] wil6210: check no_fw_recovery in resume failure
+ recovery
+
+Reset 11ad device on resume failure only if no_fw_recovery
+is not set.
+
+Signed-off-by: Maya Erez <qca_merez@qca.qualcomm.com>
+Signed-off-by: Daniel Steinmetzer <dsteinmetzer@seemoo.tu-darmstadt.de>
+---
+ wil6210/pm.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/pm.c b/drivers/net/wireless/ath/wil6210/pm.c
+index ce1f384..4548829 100644
+--- a/drivers/net/wireless/ath/wil6210/pm.c
++++ b/drivers/net/wireless/ath/wil6210/pm.c
+@@ -85,7 +85,9 @@ static int wil_resume_keep_radio_on(struct wil6210_priv *wil)
+ 	/* Send WMI resume request to the device */
+ 	rc = wmi_resume(wil);
+ 	if (rc) {
+-		wil_err(wil, "device failed to resume (%d), resetting\n", rc);
++		wil_err(wil, "device failed to resume (%d)\n", rc);
++		if (no_fw_recovery)
++			goto out;
+ 		rc = wil_down(wil);
+ 		if (rc) {
+ 			wil_err(wil, "wil_down failed (%d)\n", rc);
+-- 
+2.14.3 (Apple Git-98)
+
