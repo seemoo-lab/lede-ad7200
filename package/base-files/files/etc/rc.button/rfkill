@@ -22,10 +22,12 @@ case "${TYPE}" in
 	[ "${ACTION}" = "released" ] && rfkill_state=1
 	;;
 *)
-	config_foreach wifi_rfkill_check wifi-device
+	#config_foreach wifi_rfkill_check wifi-device
+    wifi_rfkill_check radio1
 	;;
 esac
-config_foreach wifi_rfkill_set wifi-device
+#config_foreach wifi_rfkill_set wifi-device
+wifi_rfkill_set radio1
 uci commit wireless
 wifi up
 
