@@ -8,6 +8,9 @@ Our Talon Tools framework is a research project that we share with the community
 ## WARNING
 This software might damage your hardware and may void your hardware’s warranty. Use our tools at your risk and responsibility.
 
+## Download Pre-Build Image
+To save time compiling the complete buildsystem, you can download our [pre-build images](https://github.com/seemoo-lab/lede-ad7200/releases) and directly flash it to the device (see "Device Flashing" below). If you want to integrate own functionality continue with the following build instructions.
+
 ## Quick Image Build Instructions
 
 This is a quick build instruction guide to compile a LEDE image for the Talon AD7200. Parts of this instruction has been taken from the official [LEDE documentation](https://lede-project.org/docs/guide-developer/quickstart-build-images) and has been adapted for the given architecture.
@@ -109,11 +112,15 @@ You can add additional files to the image by placing them in the */files* folder
 ## Establish a 60 GHz Link
 To establish a link, you need to configure one device as AP. The default image comes with a predefined configuration, you just need to start the hostapd daemon for the *wlan2* interface:
 ```bash
-hostapd /etc/hostapd.conf
+hostapd -B /etc/hostapd_wlan2.conf
 ```
-This will start the AP with SSID *TALON_AD7200* on channel 2 without any encryption. Other devices in manged mode (default) and range should connect directly. Up 8 managed stations are supported to connect to one AP simultaneously. Finally you need to configure the IP Addresses (replace XXX by any number less than 255):
+This will start the AP with SSID *TALON_AD7200* on channel 2 without any encryption. Other devices in manged mode and range can connect using the wpa_supplicant:
 ```bash
-ifconfig wlan2 192.168.100.XXX
+wpa_supplicant -Dnl80211 -iwlan2 -c/etc/wpa_supplicant.conf -B
+```
+Up 8 managed stations are supported to connect to one AP simultaneously. Finally you need to configure the IP Addresses (replace XXX by any number less than 255):
+```bash
+$ ifconfig wlan2 192.168.100.XXX
 ```
 
 ## Set-up Monitor Mode
