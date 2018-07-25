@@ -1,6 +1,9 @@
 # LEDE for Talon AD7200
 This project contains the source code to compile a LEDE image for the TP-Link Talon AD7200. With the wil6210 driver and firmware already integrated, it supports to configure the IEEE 802.11ad interface in AP, managed, and monitor mode. Therewith it allows to easily establish a 60 GHz links between multiple devices. Through the Linux OS, this allows to use the Talon AD7200 routers for arbitrary application scenarios.
 
+## Usage Report and Statistics
+Our Talon Tools framework is a research project that we share with the community so that others can reproduce our results and benefit from it. We aim to record basic statistics on where and for what purpose our tools are used. Please consider filling our short [usage report](https://goo.gl/forms/QKU0ME98f2gYhs5B2) that will only take a few minutes. You can also use this to report your publications. Doing so, you support us to keep track on the usage and allow us to continuously refine our work. 
+
 ## WARNING
 This software might damage your hardware and may void your hardware’s warranty. Use our tools at your risk and responsibility.
 
@@ -77,7 +80,7 @@ You can e.g. use tftpd-hpa,
 ```bash
 sudo apt-get install tftpd-hpa
 ```
-and place you image file in '/var/lib/tftpboot/'. The file must be named *AD7200_1.0_tp_recovery.bin*, and your machine must be setup with fixed IP address according to the following table. 
+and place your image file in '/var/lib/tftpboot/'. The file must be named *AD7200_1.0_tp_recovery.bin*, and your machine must be setup with fixed IP address according to the following table. 
 
  * **image name**: *AD7200_1.0_tp_recovery.bin*
  * **ip address**: *192.168.0.66*
