@@ -1,4 +1,5 @@
 # LEDE for Talon AD7200
+<img src="logos/talon.png" align="right" width=20% height=20%/>
 This project contains the source code to compile a LEDE image for the TP-Link Talon AD7200. With the wil6210 driver and firmware already integrated, it supports to configure the IEEE 802.11ad interface in AP, managed, and monitor mode. Therewith it allows to easily establish a 60 GHz links between multiple devices. Through the Linux OS, this allows to use the Talon AD7200 routers for arbitrary application scenarios.
 
 ## Usage Report and Statistics
