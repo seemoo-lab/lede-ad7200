@@ -102,9 +102,9 @@ If everything went well, the LEDs stay on and flashing takes some minutes. Some 
 ## Accessing Device via SSH
 The devices are configured by default with fixed IP address and SSH server running. You can login remotely as root via:
 ```bash
-ssh root@192.168.0.1
+ssh root@192.168.1.1
 ```
-Please ensure that you have configured your client accordingly.
+Please ensure that you have configured your client accordingly (e.g. ip address 192.168.1.10, net mask 255.255.255.0).
 
 ## Customizing the Image
 You can add additional files to the image by placing them in the */files* folder.  
@@ -112,7 +112,7 @@ You can add additional files to the image by placing them in the */files* folder
 ## Establish a 60 GHz Link
 To establish a link, you need to configure one device as AP. The default image comes with a predefined configuration, you just need to start the hostapd daemon for the *wlan2* interface:
 ```bash
-hostapd -B /etc/hostapd_wlan2.conf
+hostapd -B /etc/hostapd.conf
 ```
 This will start the AP with SSID *TALON_AD7200* on channel 2 without any encryption. Other devices in manged mode and range can connect using the wpa_supplicant:
 ```bash
